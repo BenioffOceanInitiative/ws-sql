@@ -60,15 +60,8 @@ spdf = SpatialPolygonsDataFrame(sps,data)
 summary(spdf)
 writeOGR(spdf, dsn = '.', layer = 'poly', driver = "ESRI Shapefile")
 
-if(!require(rgeos)){
-    install.packages("rgeos")
-    library(rgeos)
-}
 
-centroid = gCentroid(spdf,byid=TRUE)
-plot(spdf)
-points(coordinates(spdf),pch=1)
-points(centroid,pch=2)
+
 
 x_coord <- c(-65,
 -62.66666667,
