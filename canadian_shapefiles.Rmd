@@ -183,7 +183,7 @@ data_E = data.frame(f=99.9)
 spdf_E = SpatialPolygonsDataFrame(sps_E,data_E)
 writeOGR(spdf_E, dsn = '.', layer = 'dynamic_E', driver = "ESRI Shapefile")
 
-
+ 
 ```
 
 
