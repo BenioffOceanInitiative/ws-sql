@@ -1,0 +1,190 @@
+---
+title: "canadian_shapefiles"
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse) 
+library(lubridate)
+library(DBI)
+library(bigrquery)
+library(glue)
+library(kableExtra)
+library(janitor)
+library(reshape)
+library(tmap)
+library(ggmap)
+library(kableExtra)
+library(tmap)
+library(mapview)
+library(leaflet)
+library(sf)
+library(here)
+library(ggplot2)
+library(mapview)
+library(DT)
+library(graphics)
+library(sp)
+library(raster)
+library(rgdal)
+```
+
+```{r}
+#Canada slow speed zones make their coordinates public in decimal degree - minute format. In order to make the coordinates into shapefiles the coordinates had to be translated to decimal degree format using the formula: all calculations can be found in google drive spreadsheet canadian_zones
+
+# y - Latitude : DD + DM/60
+# x - Longitude: -DD - DM/60 
+
+#Coordinates for Northern Static Zone
+
+x_coord <- c(-65,-65,-64.216667,-62.666667,-61.125,-61.058333,-61,-61,-62,-63,-63)
+y_coord <- c(50.333333,49.216667,48.666667,48.666667,48.05,47.968333,48,49.066667,49.066667,49.716667,50.333333)
+#rbind as coordinates
+xym <- cbind(x_coord, y_coord)
+#make dataframe
+xym2 <- as.data.frame(xym)
+#create a Polygon, wrap that into a Polygons object, then wrap that into a SpatialPolygons object:
+p = Polygon(xym)
+ps = Polygons(list(p),1)
+sps = SpatialPolygons(list(ps))
+plot(sps)
+
+#give NAD83 CRS
+proj4string(sps) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
+#SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
+data = data.frame(f=99.9)
+spdf = SpatialPolygonsDataFrame(sps,data)
+#write shapefile
+writeOGR(spdf, dsn = '.', layer = 'northern_static', driver = "ESRI Shapefile")
+########################
+#Southern Static Zone
+x_coord_southern <- c(-65,-62.66666667,-61.125,-61.05833333,-62.5,-65)
+y_coord_southern <- c(48.66666667,48.66666667,48.05,47.96666667,47.16666667,47.16666667)
+xym_southern <- cbind(x_coord_southern, y_coord_southern)
+xym2_southern <- as.data.frame(xym_southern)
+
+p_southern = Polygon(xym_southern)
+ps_southern = Polygons(list(p_southern),1)
+sps_southern = SpatialPolygons(list(ps_southern))
+#give NAD83 CRS
+proj4string(sps_southern) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
+#SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
+data_southern = data.frame(f=99.9)
+spdf_southern = SpatialPolygonsDataFrame(sps_southern,data_southern)
+
+writeOGR(spdf_southern, dsn = '.',layer = 'southern_static', driver = "ESRI Shapefile")
+
+#Dynamic Area A
+x_coord_A <- c(-65,-65,-64,-64)
+y_coord_A <- c(49.68333333,49.33333333,49.18333333,49.36666667)
+
+xym_A <- cbind(x_coord_A, y_coord_A)
+xym2_A <- as.data.frame(xym_A)
+
+p_A = Polygon(xym_A)
+ps_A = Polygons(list(p_A),1)
+sps_A = SpatialPolygons(list(ps_A))
+#give NAD83 CRS
+proj4string(sps_A) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
+#SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
+
+data_A = data.frame(f=99.9)
+spdf_A = SpatialPolygonsDataFrame(sps_A,data_A)
+writeOGR(spdf_A, dsn = '.', layer = 'dynamic_A', driver = "ESRI Shapefile")
+#############################
+#Dynamic Area B
+x_coord_B <- c(-64,-64,-63,-63)
+y_coord_B <- c(49.36666667,49.18333333,48.8,49)
+xym_B <- cbind(x_coord_B, y_coord_B)
+xym2_B <- as.data.frame(xym_B)
+
+p_B = Polygon(xym_B)
+ps_B = Polygons(list(p_B),1)
+sps_B = SpatialPolygons(list(ps_B))
+#give NAD83 CRS
+proj4string(sps_B) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
+#SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
+
+data_B = data.frame(f=99.9)
+spdf_B = SpatialPolygonsDataFrame(sps_B,data_B)
+writeOGR(spdf_B, dsn = '.', layer = 'dynamic_B', driver = "ESRI Shapefile")
+############################
+#Dynamic Area C
+x_coord_C <- c(-63,-63,-62,-62)
+y_coord_C <- c(49,48.8,48.4,48.58333333)
+xym_C <- cbind(x_coord_C, y_coord_C)
+xym2_C <- as.data.frame(xym_C)
+
+p_C = Polygon(xym_C)
+ps_C = Polygons(list(p_C),1)
+sps_C = SpatialPolygons(list(ps_C))
+#give NAD83 CRS
+proj4string(sps_C) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
+#SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
+
+data_C = data.frame(f=99.9)
+spdf_C = SpatialPolygonsDataFrame(sps_C,data_C)
+writeOGR(spdf_C, dsn = '.', layer = 'dynamic_C', driver = "ESRI Shapefile")
+
+############################
+#Dynamic Area D
+x_coord_D <- c(-64,-64,-63,-63)
+y_coord_D <- c(50.26666667,50,49.93333333,50.26666667)
+xym_D <- cbind(x_coord_D, y_coord_D)
+xym2_D <- as.data.frame(xym_D)
+
+p_D = Polygon(xym_D)
+ps_D = Polygons(list(p_D),1)
+sps_D = SpatialPolygons(list(ps_D))
+#give NAD83 CRS
+proj4string(sps_D) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
+#SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
+
+data_D = data.frame(f=99.9)
+spdf_D = SpatialPolygonsDataFrame(sps_D,data_D)
+writeOGR(spdf_D, dsn = '.', layer = 'dynamic_D', driver = "ESRI Shapefile")
+
+############################
+#Dynamic Area E
+x_coord_E <- c(-62,-62,-61.125,-61.05833333,-61,-61)
+y_coord_E <- c(48.58333333,48.4,48.05,47.96833333,48,48.175)
+xym_E <- cbind(x_coord_E, y_coord_E)
+xym2_E <- as.data.frame(xym_E)
+
+p_E = Polygon(xym_E)
+ps_E = Polygons(list(p_E),1)
+sps_E = SpatialPolygons(list(ps_E))
+#give NAD83 CRS
+proj4string(sps_E) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
+#SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
+
+data_E = data.frame(f=99.9)
+spdf_E = SpatialPolygonsDataFrame(sps_E,data_E)
+writeOGR(spdf_E, dsn = '.', layer = 'dynamic_E', driver = "ESRI Shapefile")
+
+############################
+#SMA 1
+x_coord_SMA1 <- c(-62,-62,-61.125,-61.05833333,-61,-61)
+y_coord_SMA1 <- c(48.58333333,48.4,48.05,47.96833333,48,48.175)
+xym_SMA1 <- cbind(x_coord_SMA1, y_coord_SMA1)
+xym2_SMA1 <- as.data.frame(xym_SMA1)
+
+p_SMA1 = Polygon(xym_SMA1)
+ps_SMA1 = Polygons(list(p_SMA1),1)
+sps_SMA1 = SpatialPolygons(list(ps_SMA1))
+#give NAD83 CRS
+proj4string(sps_SMA1) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
+#SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
+
+data_E = data.frame(f=99.9)
+spdf_E = SpatialPolygonsDataFrame(sps_E,data_E)
+writeOGR(spdf_E, dsn = '.', layer = 'dynamic_E', driver = "ESRI Shapefile")
+
+
+```
+
+
+
