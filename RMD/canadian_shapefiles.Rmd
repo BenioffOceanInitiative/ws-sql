@@ -38,6 +38,8 @@ library(rgdal)
 # y - Latitude : DD + DM/60
 # x - Longitude: -DD - DM/60 
 
+# used this tutorial for polygon creation https://rstudio-pubs-static.s3.amazonaws.com/202536_7a122ff56e9f4062b6b012d9921afd80.html
+
 #Coordinates for Northern Static Zone
 
 x_coord <- c(-65,-65,-64.216667,-62.666667,-61.125,-61.058333,-61,-61,-62,-63,-63)
@@ -167,8 +169,8 @@ writeOGR(spdf_E, dsn = '.', layer = 'dynamic_E', driver = "ESRI Shapefile")
 
 ############################
 #SMA 1
-x_coord_SMA1 <- c(-62,-62,-61.125,-61.05833333,-61,-61)
-y_coord_SMA1 <- c(48.58333333,48.4,48.05,47.96833333,48,48.175)
+x_coord_SMA1 <- c(-62,-61,-61,-62)
+y_coord_SMA1 <- c(49.06666667,49.06666667,48.175,48.58333333)
 xym_SMA1 <- cbind(x_coord_SMA1, y_coord_SMA1)
 xym2_SMA1 <- as.data.frame(xym_SMA1)
 
@@ -179,11 +181,64 @@ sps_SMA1 = SpatialPolygons(list(ps_SMA1))
 proj4string(sps_SMA1) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
 #SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
 
-data_E = data.frame(f=99.9)
-spdf_E = SpatialPolygonsDataFrame(sps_E,data_E)
-writeOGR(spdf_E, dsn = '.', layer = 'dynamic_E', driver = "ESRI Shapefile")
+data_SMA1 = data.frame(f=99.9)
+spdf_SMA1 = SpatialPolygonsDataFrame(sps_SMA1,data_SMA1)
+writeOGR(spdf_SMA1, dsn = '.', layer = 'sma_1', driver = "ESRI Shapefile")
 
+############################
+#SMA 2
+x_coord_SMA2 <- c(-62,-61.125,-61.05833333,-62)
+y_coord_SMA2 <- c(48.4,48.05,47.96833333,47.44483333)
+xym_SMA2 <- cbind(x_coord_SMA2, y_coord_SMA2)
+xym2_SMA2 <- as.data.frame(xym_SMA2)
+
+p_SMA2 = Polygon(xym_SMA2)
+ps_SMA2 = Polygons(list(p_SMA2),1)
+sps_SMA2 = SpatialPolygons(list(ps_SMA2))
+#give NAD83 CRS
+proj4string(sps_SMA2) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
+#SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
+
+data_SMA2 = data.frame(f=99.9)
+spdf_SMA2 = SpatialPolygonsDataFrame(sps_SMA2,data_SMA2)
+writeOGR(spdf_SMA2, dsn = '.', layer = 'sma_2', driver = "ESRI Shapefile")
  
+############################
+#restricted area
+x_coord_restricted <- c(-63.66,-63.298,-64.18,-64.512)
+y_coord_restricted  <- c(48.53,48.412,47.314,47.453)
+xym_restricted  <- cbind(x_coord_restricted , y_coord_restricted)
+xym2_restricted <- as.data.frame(xym_restricted )
+
+p_restricted  = Polygon(xym_restricted )
+ps_restricted  = Polygons(list(p_restricted),1)
+sps_restricted  = SpatialPolygons(list(ps_restricted))
+#give NAD83 CRS
+proj4string(sps_restricted ) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
+#SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
+
+data_restricted  = data.frame(f=99.9)
+spdf_restricted  = SpatialPolygonsDataFrame(sps_restricted ,data_restricted)
+writeOGR(spdf_restricted , dsn = '.', layer = 'restricted ', driver = "ESRI Shapefile")
+############################
+#voluntary slow down zone
+x_coord_voluntary <- c(-61,-59.30833333,-60.395,-61.05833333,-61)
+y_coord_voluntary  <- c(48.175,47.62,47.03333333,47.96833333,48)
+xym_voluntary  <- cbind(x_coord_voluntary, y_coord_voluntary)
+xym2_voluntary <- as.data.frame(xym_voluntary)
+
+p_voluntary  = Polygon(xym_voluntary)
+ps_voluntary  = Polygons(list(p_voluntary),1)
+sps_voluntary  = SpatialPolygons(list(ps_voluntary))
+#give NAD83 CRS
+proj4string(sps_voluntary) = CRS("+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0")
+#SpatialPolygonsDataFrame (which is what comes our of readShapeSpatial when the shapefile is polygons) then do
+
+data_voluntary  = data.frame(f=99.9)
+spdf_voluntary = SpatialPolygonsDataFrame(sps_voluntary ,data_voluntary)
+writeOGR(spdf_voluntary , dsn = '.', layer = 'voluntary ', driver = "ESRI Shapefile")
+ 
+
 ```
 
 
