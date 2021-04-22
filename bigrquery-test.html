@@ -367,35 +367,370 @@ summary {
 
 
 <p>Reference: <a href="https://bigrquery.r-dbi.org">bigrquery.r-dbi.org</a></p>
-<div id="authorize" class="section level2">
-<h2>Authorize</h2>
-<p>For non-interactive usage:</p>
+<div id="authorize-attempt-1" class="section level2">
+<h2>Authorize attempt 1</h2>
+<p>For non-interactive usage, using:</p>
+<ul>
+<li><a href="https://console.cloud.google.com/iam-admin/serviceaccounts/details/114569616080626900590?authuser=3&amp;project=benioff-ocean-initiative">ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com</a></li>
+</ul>
+<div id="sidenote-alternate-account" class="section level3">
+<h3>sidenote: alternate account</h3>
+<ul>
+<li><p><a href="https://console.cloud.google.com/iam-admin/serviceaccounts/details/108185723528190775192?authuser=3&amp;project=benioff-ocean-initiative">whalesafe_table_updater – IAM &amp; Admin – Benioff Ocean Initi… – Google Cloud Platform</a></p></li>
+<li>Service account token, per <a href="https://gargle.r-lib.org/articles/get-api-credentials.html#service-account-token">How to get your own API credentials • gargle</a>
+<ul>
+<li>From the Developers Console, in the target GCP Project, go to IAM &amp; Admin &gt; Service accounts</li>
+<li>whalesafe_table_updater &gt; KEYS menu &gt; ADD KEY button</li>
+<li>Downloaded <a href="https://drive.google.com/open?id=1ClWXfMMVxufY4-_EPyOj2hHnC4dU3qtS&amp;authuser=ben%40ecoquants.com&amp;usp=drive_fs">benioff-ocean-initiative-b208e85608c2.json</a> into <a href="https://drive.google.com/drive/u/3/folders/1crBGnOPGiKdWbtOLQhzgdJKA1ztZBzTM">gfw - Google Drive</a> and uploaded into server <code>/home/admin</code></li>
+</ul></li>
+</ul>
 <pre class="r"><code>library(bigrquery)
 
+# ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com
 auth_json = '/home/admin/Benioff Ocean Initiative-454f666d1896.json'
-bq_auth(path = &quot;/path/to/your/service-account.json&quot;)</code></pre>
-<p>First time only:</p>
-<pre><code>Use a local file ('.httr-oauth'), to cache OAuth access credentials between R sessions?
-
-1: Yes
-2: No</code></pre>
-<p>1: Yes</p>
-<pre class="r"><code>(prj &lt;- bq_projects())</code></pre>
+bq_auth(path = auth_json)</code></pre>
+<pre class="r"><code>(projects &lt;- bq_projects())</code></pre>
 <pre><code>## [1] &quot;benioff-ocean-initiative&quot;</code></pre>
-<pre class="r"><code>bq_project_datasets(prj)</code></pre>
-<pre><code>## list()</code></pre>
+<pre class="r"><code>prj &lt;- projects[[1]]
+bq_project_datasets(prj)</code></pre>
+<pre><code>## [[1]]
+## &lt;bq_dataset&gt; benioff-ocean-initiative.boi_billing
+## 
+## [[2]]
+## &lt;bq_dataset&gt; benioff-ocean-initiative.riverplastic
+## 
+## [[3]]
+## &lt;bq_dataset&gt; benioff-ocean-initiative.sbarc_ais
+## 
+## [[4]]
+## &lt;bq_dataset&gt; benioff-ocean-initiative.scratch
+## 
+## [[5]]
+## &lt;bq_dataset&gt; benioff-ocean-initiative.whalesafe_v2
+## 
+## [[6]]
+## &lt;bq_dataset&gt; benioff-ocean-initiative.whalesafe_v3</code></pre>
 <pre class="r"><code>try(bq_project_jobs(prj))</code></pre>
-<pre><code>## Error : Access Denied: Project project_id: &quot;benioff-ocean-initiative&quot;
-## gaia_id: 672634735366
-## : User does not have bigquery.jobs.list permission in project benioff-ocean-initiative. [accessDenied]</code></pre>
+<pre><code>## Warning: Only first 100 results retrieved. Adjust with `max_pages` and
+## `page_size` parameters.</code></pre>
+<pre><code>## [[1]]
+## &lt;bq_job&gt; benioff-ocean-initiative.job_2hgMfrEkND_KvzxImwn-c1dd0pEw.US
+## 
+## [[2]]
+## &lt;bq_job&gt; benioff-ocean-initiative.job_iDZ8oxLZANjkciLttExOXG0Iy0RD.US
+## 
+## [[3]]
+## &lt;bq_job&gt; benioff-ocean-initiative.62f2141f-0411-407c-9cdb-bf9fff4fc5fb.US
+## 
+## [[4]]
+## &lt;bq_job&gt; benioff-ocean-initiative.587627ae-f071-4baf-9837-5e6dcd647295.US
+## 
+## [[5]]
+## &lt;bq_job&gt; benioff-ocean-initiative.ec45b45a-3da8-4ce0-af2f-126064619ae4.US
+## 
+## [[6]]
+## &lt;bq_job&gt; benioff-ocean-initiative.4f841691-4e04-4629-9deb-0b7cdf1c7606.US
+## 
+## [[7]]
+## &lt;bq_job&gt; benioff-ocean-initiative.19f09ffb-ec74-4b24-ad65-dad43201f0fb.US
+## 
+## [[8]]
+## &lt;bq_job&gt; benioff-ocean-initiative.d6c66c32-d9d0-4f61-ab88-2b1a22d25bc5.US
+## 
+## [[9]]
+## &lt;bq_job&gt; benioff-ocean-initiative.b4e986ea-18cf-4e8a-9fd1-9697d8ad492c.US
+## 
+## [[10]]
+## &lt;bq_job&gt; benioff-ocean-initiative.99a9a5e3-eee0-46c4-850d-4b2998668c47.US
+## 
+## [[11]]
+## &lt;bq_job&gt; benioff-ocean-initiative.a2528b40-da08-4280-b637-c9a95ef4c637.US
+## 
+## [[12]]
+## &lt;bq_job&gt; benioff-ocean-initiative.7b20cffa-1f62-48db-8b51-598f1ab5ec7d.US
+## 
+## [[13]]
+## &lt;bq_job&gt; benioff-ocean-initiative.a34eb23f-0fb9-403f-afe1-1113645c7c45.US
+## 
+## [[14]]
+## &lt;bq_job&gt; benioff-ocean-initiative.217082af-0667-4772-bb32-5cf41bc85272.US
+## 
+## [[15]]
+## &lt;bq_job&gt; benioff-ocean-initiative.b47e5497-7e96-4e57-aee5-1159d3aae3eb.US
+## 
+## [[16]]
+## &lt;bq_job&gt; benioff-ocean-initiative.026662d7-f32d-418d-aa82-5447055a530b.US
+## 
+## [[17]]
+## &lt;bq_job&gt; benioff-ocean-initiative.10ae4074-4ac1-4743-8b6c-eb07c1008064.US
+## 
+## [[18]]
+## &lt;bq_job&gt; benioff-ocean-initiative.270e4867-9071-4335-8fc5-8c136c1cb4b5.US
+## 
+## [[19]]
+## &lt;bq_job&gt; benioff-ocean-initiative.baf408c8-f59e-4998-b46a-86b185f3ae84.US
+## 
+## [[20]]
+## &lt;bq_job&gt; benioff-ocean-initiative.07034bbc-1943-4ae5-8645-8daaf4fb84d9.US
+## 
+## [[21]]
+## &lt;bq_job&gt; benioff-ocean-initiative.06c60878-eed5-4547-84d0-af69d8f7c7f7.US
+## 
+## [[22]]
+## &lt;bq_job&gt; benioff-ocean-initiative.5be80930-5bff-4577-bf93-c716daa1e0ad.US
+## 
+## [[23]]
+## &lt;bq_job&gt; benioff-ocean-initiative.a4d36345-3aaa-4ef5-8b62-4bb7b8a3c683.US
+## 
+## [[24]]
+## &lt;bq_job&gt; benioff-ocean-initiative.109e9093-cc5d-45f0-8774-50c41a16174d.US
+## 
+## [[25]]
+## &lt;bq_job&gt; benioff-ocean-initiative.988a9ac0-8692-4e5d-9794-3354b7a1e0e2.US
+## 
+## [[26]]
+## &lt;bq_job&gt; benioff-ocean-initiative.e1307bc8-ab52-4d58-81cd-7a6022e594ae.US
+## 
+## [[27]]
+## &lt;bq_job&gt; benioff-ocean-initiative.59d8a36b-be35-40cb-a68d-3ea66dc69a45.US
+## 
+## [[28]]
+## &lt;bq_job&gt; benioff-ocean-initiative.7cba4c29-c335-4237-af79-f0fb0ae911e7.US
+## 
+## [[29]]
+## &lt;bq_job&gt; benioff-ocean-initiative.87e39f74-715c-4b44-84c9-94e4ea508ba0.US
+## 
+## [[30]]
+## &lt;bq_job&gt; benioff-ocean-initiative.923afbec-a0ed-4a93-a73e-54e9ebf9faf9.US
+## 
+## [[31]]
+## &lt;bq_job&gt; benioff-ocean-initiative.ed0114d7-88e9-452e-a880-df590ba362ce.US
+## 
+## [[32]]
+## &lt;bq_job&gt; benioff-ocean-initiative.43fc4962-18c6-4b8c-8d5c-eeb59c22126c.US
+## 
+## [[33]]
+## &lt;bq_job&gt; benioff-ocean-initiative.5ff534bf-79bd-43d0-9249-dd92e752e675.US
+## 
+## [[34]]
+## &lt;bq_job&gt; benioff-ocean-initiative.69c71fad-f622-48b6-b542-8306b9dcf656.US
+## 
+## [[35]]
+## &lt;bq_job&gt; benioff-ocean-initiative.b80b3866-f8a0-4f09-8a30-5851ded8a22f.US
+## 
+## [[36]]
+## &lt;bq_job&gt; benioff-ocean-initiative.e839928b-d17d-472c-8946-9c17cd84443b.US
+## 
+## [[37]]
+## &lt;bq_job&gt; benioff-ocean-initiative.53cb9cc3-39d1-4dcd-88bd-7ca3da521e28.US
+## 
+## [[38]]
+## &lt;bq_job&gt; benioff-ocean-initiative.1f9e3b13-7208-4ae3-8c23-f1cf510cfe41.US
+## 
+## [[39]]
+## &lt;bq_job&gt; benioff-ocean-initiative.826a85f3-41f2-48b8-9f1b-298445e9a122.US
+## 
+## [[40]]
+## &lt;bq_job&gt; benioff-ocean-initiative.2ae262c3-5966-40e5-9a3f-afced1ff9508.US
+## 
+## [[41]]
+## &lt;bq_job&gt; benioff-ocean-initiative.83ac1771-71e8-4e34-a7dc-4efa1790aff2.US
+## 
+## [[42]]
+## &lt;bq_job&gt; benioff-ocean-initiative.6950b15e-be7a-4e38-b989-3167ce182cba.US
+## 
+## [[43]]
+## &lt;bq_job&gt; benioff-ocean-initiative.810e7f14-c4f6-4697-8ffc-1fb2f6e438fa.US
+## 
+## [[44]]
+## &lt;bq_job&gt; benioff-ocean-initiative.f96aa67b-8b05-483b-93cd-a1cad28627e1.US
+## 
+## [[45]]
+## &lt;bq_job&gt; benioff-ocean-initiative.74fe3e1d-3cf2-41d2-86da-072da187d521.US
+## 
+## [[46]]
+## &lt;bq_job&gt; benioff-ocean-initiative.e34d9a66-978f-4973-b2a1-48a9ca6a2b31.US
+## 
+## [[47]]
+## &lt;bq_job&gt; benioff-ocean-initiative.59b5f5fa-a4cf-41cd-b55f-75128d528de0.US
+## 
+## [[48]]
+## &lt;bq_job&gt; benioff-ocean-initiative.aa4f0f9b-67c5-432d-b7b7-24a49be245f9.US
+## 
+## [[49]]
+## &lt;bq_job&gt; benioff-ocean-initiative.b43f64df-768e-4235-83b4-fcffb99e9aa0.US
+## 
+## [[50]]
+## &lt;bq_job&gt; benioff-ocean-initiative.85e28f6e-5193-4dd3-906d-73a92e318692.US
+## 
+## [[51]]
+## &lt;bq_job&gt; benioff-ocean-initiative.9fb9c54b-7181-4d0b-871b-fab1bfe82532.US
+## 
+## [[52]]
+## &lt;bq_job&gt; benioff-ocean-initiative.299ecc2d-2a59-4a03-ae70-0fb122d7fce2.US
+## 
+## [[53]]
+## &lt;bq_job&gt; benioff-ocean-initiative.a873415a-d980-4217-9b8e-20839888e254.US
+## 
+## [[54]]
+## &lt;bq_job&gt; benioff-ocean-initiative.9c30869a-dbd9-4cab-9567-617b1e7f1aaf.US
+## 
+## [[55]]
+## &lt;bq_job&gt; benioff-ocean-initiative.baa68d96-aad0-4e5f-ba9c-6ae1731fbd43.US
+## 
+## [[56]]
+## &lt;bq_job&gt; benioff-ocean-initiative.060485b4-7d79-4fb4-b2fe-98497455f66e.US
+## 
+## [[57]]
+## &lt;bq_job&gt; benioff-ocean-initiative.6ecdf797-e271-455f-8b80-2b78a14c1c1b.US
+## 
+## [[58]]
+## &lt;bq_job&gt; benioff-ocean-initiative.d4ff07d8-199b-40d6-93ed-0d59ef48b788.US
+## 
+## [[59]]
+## &lt;bq_job&gt; benioff-ocean-initiative.7e1b9d06-39be-4a20-ad5c-e1ef78941388.US
+## 
+## [[60]]
+## &lt;bq_job&gt; benioff-ocean-initiative.86d39a83-0644-46ff-bf45-e57ebbad9bed.US
+## 
+## [[61]]
+## &lt;bq_job&gt; benioff-ocean-initiative.571edd0b-2a07-4a6b-a832-0a475db319f7.US
+## 
+## [[62]]
+## &lt;bq_job&gt; benioff-ocean-initiative.4243908b-ca85-47d6-a572-48948bf42c81.US
+## 
+## [[63]]
+## &lt;bq_job&gt; benioff-ocean-initiative.bf49106d-5d65-4c38-9883-bf125f81fb2a.US
+## 
+## [[64]]
+## &lt;bq_job&gt; benioff-ocean-initiative.69dd7bde-2a2d-4a3a-8281-fa38f6e46838.US
+## 
+## [[65]]
+## &lt;bq_job&gt; benioff-ocean-initiative.f7dcc2fd-b6a0-42d5-b70e-7776600461ef.US
+## 
+## [[66]]
+## &lt;bq_job&gt; benioff-ocean-initiative.cc134c48-8302-4de7-a545-9ea596b71590.US
+## 
+## [[67]]
+## &lt;bq_job&gt; benioff-ocean-initiative.212c6b2c-0b9c-4cad-a6a1-88092cd25c1e.US
+## 
+## [[68]]
+## &lt;bq_job&gt; benioff-ocean-initiative.124ae084-9b5b-4c09-960b-dbaac8ec9388.US
+## 
+## [[69]]
+## &lt;bq_job&gt; benioff-ocean-initiative.a575455b-c545-459a-a87a-7dd884670be4.US
+## 
+## [[70]]
+## &lt;bq_job&gt; benioff-ocean-initiative.b5b1818d-6211-46e0-9ccc-8b531399e6df.US
+## 
+## [[71]]
+## &lt;bq_job&gt; benioff-ocean-initiative.b54f261b-5780-484f-8358-90c3968cfa9e.US
+## 
+## [[72]]
+## &lt;bq_job&gt; benioff-ocean-initiative.9b5a0c20-dbdc-4175-8c6d-dc7306e5ed30.US
+## 
+## [[73]]
+## &lt;bq_job&gt; benioff-ocean-initiative.7b49a014-1d7c-4d0b-8df7-5793c0fd4646.US
+## 
+## [[74]]
+## &lt;bq_job&gt; benioff-ocean-initiative.bd277e5b-ee20-4a0b-865f-a076a274011a.US
+## 
+## [[75]]
+## &lt;bq_job&gt; benioff-ocean-initiative.a5b284e1-ef90-4a48-960d-3a0f61da7d50.US
+## 
+## [[76]]
+## &lt;bq_job&gt; benioff-ocean-initiative.337ccfae-684a-4066-9e57-4329fd7da75e.US
+## 
+## [[77]]
+## &lt;bq_job&gt; benioff-ocean-initiative.83ecc086-9f37-4d4e-8033-88f368bc66f0.US
+## 
+## [[78]]
+## &lt;bq_job&gt; benioff-ocean-initiative.8453e2d8-7279-416c-8925-8ddf95eba5f4.US
+## 
+## [[79]]
+## &lt;bq_job&gt; benioff-ocean-initiative.bde4926f-592e-4c99-8f04-89277aea4f34.US
+## 
+## [[80]]
+## &lt;bq_job&gt; benioff-ocean-initiative.d7a12c36-3acf-4d9f-94aa-6716b6613d65.US
+## 
+## [[81]]
+## &lt;bq_job&gt; benioff-ocean-initiative.e992060e-1e3f-4a09-8c83-cab65c069025.US
+## 
+## [[82]]
+## &lt;bq_job&gt; benioff-ocean-initiative.efb94110-1ecf-4353-9790-732784d50022.US
+## 
+## [[83]]
+## &lt;bq_job&gt; benioff-ocean-initiative.38cce984-ef9f-445c-8490-6e5dc727f12e.US
+## 
+## [[84]]
+## &lt;bq_job&gt; benioff-ocean-initiative.bcb22000-ce3d-488c-8769-0225e7314c67.US
+## 
+## [[85]]
+## &lt;bq_job&gt; benioff-ocean-initiative.7d3e8e03-2625-4154-9158-f17bcfd94504.US
+## 
+## [[86]]
+## &lt;bq_job&gt; benioff-ocean-initiative.8c81c862-c34d-4863-b764-c409537131b0.US
+## 
+## [[87]]
+## &lt;bq_job&gt; benioff-ocean-initiative.d3171c90-397f-4781-b322-4897bef53988.US
+## 
+## [[88]]
+## &lt;bq_job&gt; benioff-ocean-initiative.167d0a2a-3333-42ff-8a74-8812ce444c3a.US
+## 
+## [[89]]
+## &lt;bq_job&gt; benioff-ocean-initiative.8d8b12e3-509a-4da1-ab50-a6d14b044dfc.US
+## 
+## [[90]]
+## &lt;bq_job&gt; benioff-ocean-initiative.1005fe58-f7a5-4671-adf3-77d03a207f4b.US
+## 
+## [[91]]
+## &lt;bq_job&gt; benioff-ocean-initiative.54797290-7f96-48a8-adc2-0d4bdc17eb4b.US
+## 
+## [[92]]
+## &lt;bq_job&gt; benioff-ocean-initiative.064cb075-8912-463a-a691-04229ab32026.US
+## 
+## [[93]]
+## &lt;bq_job&gt; benioff-ocean-initiative.4c7da8d6-2e4d-493e-88ae-267c75f6e4b9.US
+## 
+## [[94]]
+## &lt;bq_job&gt; benioff-ocean-initiative.a3983961-ed95-4655-a292-94e927b4713a.US
+## 
+## [[95]]
+## &lt;bq_job&gt; benioff-ocean-initiative.3a5fe864-1213-4e63-92fe-aac1fac9caa6.US
+## 
+## [[96]]
+## &lt;bq_job&gt; benioff-ocean-initiative.d96aef7d-7d01-4912-be23-476e48bf33d5.US
+## 
+## [[97]]
+## &lt;bq_job&gt; benioff-ocean-initiative.09419ecb-9f93-41d0-9261-d9ea74b7dab1.US
+## 
+## [[98]]
+## &lt;bq_job&gt; benioff-ocean-initiative.b363ed5a-e168-480f-b13f-4b1dd14d8943.US
+## 
+## [[99]]
+## &lt;bq_job&gt; benioff-ocean-initiative.9101f79b-41c0-4636-b565-47fac12bb4b4.US
+## 
+## [[100]]
+## &lt;bq_job&gt; benioff-ocean-initiative.d0a589d2-3092-410d-9449-c8d932a89f28.US</code></pre>
 <pre class="r"><code>sql &lt;- &quot;SELECT year, month, day, weight_pounds FROM `publicdata.samples.natality`&quot;
 
-tb &lt;- try(bq_project_query(prj, sql))</code></pre>
-<pre><code>## Error : Access Denied: Project project_id: &quot;benioff-ocean-initiative&quot;
-## gaia_id: 672634735366
-## : User does not have bigquery.jobs.create permission in project benioff-ocean-initiative. [accessDenied]</code></pre>
-<pre class="r"><code>if (!&quot;try-error&quot; %in% class(tb))
+tb &lt;- try(bq_project_query(prj, sql))
+if (!&quot;try-error&quot; %in% class(tb))
    try(bq_table_download(tb, max_results = 10))</code></pre>
+<pre><code>## # A tibble: 10 x 4
+##     year month   day weight_pounds
+##    &lt;int&gt; &lt;int&gt; &lt;int&gt;         &lt;dbl&gt;
+##  1  1969    12    24          5.50
+##  2  1969     1    20          7.31
+##  3  1969     7    16          4.94
+##  4  1969     3    18          8.13
+##  5  1969     2     4          4.12
+##  6  1969    12    18          7.13
+##  7  1969     8     1          8.06
+##  8  1969     4    30          7.25
+##  9  1969     7    21          8.06
+## 10  1969     9    26          7.44</code></pre>
+</div>
 </div>
 
 
