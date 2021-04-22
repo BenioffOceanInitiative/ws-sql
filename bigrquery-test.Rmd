@@ -1,0 +1,47 @@
+---
+title: "bigrquery-test"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Reference: [bigrquery.r-dbi.org](https://bigrquery.r-dbi.org)
+
+## Authorize
+
+For non-interactive usage:
+
+```{r}
+library(bigrquery)
+
+auth_json = '/home/admin/Benioff Ocean Initiative-454f666d1896.json'
+bq_auth(path = "/path/to/your/service-account.json")
+```
+
+First time only:
+
+```
+Use a local file ('.httr-oauth'), to cache OAuth access credentials between R sessions?
+
+1: Yes
+2: No
+```
+
+1: Yes
+
+```{r}
+(prj <- bq_projects())
+bq_project_datasets(prj)
+try(bq_project_jobs(prj))
+```
+
+```{r}
+sql <- "SELECT year, month, day, weight_pounds FROM `publicdata.samples.natality`"
+
+tb <- try(bq_project_query(prj, sql))
+if (!"try-error" %in% class(tb))
+   try(bq_table_download(tb, max_results = 10))
+```
+
