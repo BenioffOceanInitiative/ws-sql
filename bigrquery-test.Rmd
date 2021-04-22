@@ -9,30 +9,33 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Reference: [bigrquery.r-dbi.org](https://bigrquery.r-dbi.org)
 
-## Authorize
+## Authorize attempt 1
 
-For non-interactive usage:
+For non-interactive usage, using:
+
+- [ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com](https://console.cloud.google.com/iam-admin/serviceaccounts/details/114569616080626900590?authuser=3&project=benioff-ocean-initiative)
+
+### sidenote: alternate account
+
+- [whalesafe_table_updater – IAM & Admin – Benioff Ocean Initi… – Google Cloud Platform](https://console.cloud.google.com/iam-admin/serviceaccounts/details/108185723528190775192?authuser=3&project=benioff-ocean-initiative)
+
+- Service account token, per [How to get your own API credentials • gargle](https://gargle.r-lib.org/articles/get-api-credentials.html#service-account-token)
+  - From the Developers Console, in the target GCP Project, go to IAM & Admin > Service accounts
+  - whalesafe_table_updater > KEYS menu > ADD KEY button
+  - Downloaded [benioff-ocean-initiative-b208e85608c2.json](https://drive.google.com/open?id=1ClWXfMMVxufY4-_EPyOj2hHnC4dU3qtS&authuser=ben%40ecoquants.com&usp=drive_fs) into [gfw - Google Drive](https://drive.google.com/drive/u/3/folders/1crBGnOPGiKdWbtOLQhzgdJKA1ztZBzTM) and uploaded into server `/home/admin`
 
 ```{r}
 library(bigrquery)
 
+# ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com
 auth_json = '/home/admin/Benioff Ocean Initiative-454f666d1896.json'
-bq_auth(path = "/path/to/your/service-account.json")
+bq_auth(path = auth_json)
 ```
 
-First time only:
-
-```
-Use a local file ('.httr-oauth'), to cache OAuth access credentials between R sessions?
-
-1: Yes
-2: No
-```
-
-1: Yes
 
 ```{r}
-(prj <- bq_projects())
+(projects <- bq_projects())
+prj <- projects[[1]]
 bq_project_datasets(prj)
 try(bq_project_jobs(prj))
 ```
@@ -44,4 +47,3 @@ tb <- try(bq_project_query(prj, sql))
 if (!"try-error" %in% class(tb))
    try(bq_table_download(tb, max_results = 10))
 ```
-
