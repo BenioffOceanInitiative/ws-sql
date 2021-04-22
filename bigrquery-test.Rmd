@@ -37,7 +37,8 @@ bq_auth(path = auth_json)
 (projects <- bq_projects())
 prj <- projects[[1]]
 bq_project_datasets(prj)
-try(bq_project_jobs(prj))
+jobs <- try(bq_project_jobs(prj))
+jobs[1:3]
 ```
 
 ```{r}
@@ -46,4 +47,102 @@ sql <- "SELECT year, month, day, weight_pounds FROM `publicdata.samples.natality
 tb <- try(bq_project_query(prj, sql))
 if (!"try-error" %in% class(tb))
    try(bq_table_download(tb, max_results = 10))
+```
+
+## DBI
+
+- [db.rstudio.com/databases/big-query](https://db.rstudio.com/databases/big-query/)
+
+```{r}
+library(DBI)
+
+con <- dbConnect(
+  bigrquery::bigquery(),
+  project = "benioff-ocean-initiative",
+  dataset = "whalesafe_v3",
+  billing = "benioff-ocean-initiative")
+con
+```
+
+## Connections
+
+- [RStudio Connections Pane](https://db.rstudio.com/rstudio/connections/)
+
+```{r}
+library(connections)
+library(bigrquery)
+
+con <- connection_open(
+  bigrquery::bigquery(),
+  project = "benioff-ocean-initiative",
+  dataset = "whalesafe_v3",
+  billing = "benioff-ocean-initiative",
+  use_legacy_sql = FALSE)
+```
+
+
+Except cannot expand tables to see columns: R Code Execution Error.
+
+eval=F:
+```{r, eval=F}
+connection_close(con)
+```
+
+## Chunks
+
+* [Using SQL in RStudio](https://irene.rbind.io/post/using-sql-in-rstudio/)
+
+```{sql connection=con, eval=F}
+SELECT * FROM ais_segments LIMIT 10;
+```
+```
+Error: Cannot query over table 'ais_data' without a filter over column(s) 'timestamp' that can be used for partition elimination [invalidQuery]
+In addition: Warning message:
+In class(obj) <- c("scalar", class(obj)) :
+  Setting class(x) to multiple strings ("scalar", "SQL", ...); result will no longer be an S4 object
+Failed to execute SQL chunk
+```
+
+```{sql connection=con, eval=F}
+SELECT * FROM ais_segments 
+WHERE DATE(timestamp) > (CURRENT_DATE() - 7)
+LIMIT 10;
+```
+
+```
+Running job 'benioff-ocean-initiative.job_QNlp_dzhVrQ38KoJgTf8hFxIZ-3f.US' [|]  1s
+Complete
+Billed: 13.63 MB
+Downloading 10 rows in 1 pages.
+Error in bq_parse_files(schema_path, page_paths, n = page_info$n_rows,  : 
+  Unknown type GEOGRAPHY
+In addition: Warning message:
+In class(obj) <- c("scalar", class(obj)) :
+  Setting class(x) to multiple strings ("scalar", "SQL", ...); result will no longer be an S4 object
+Failed to execute SQL chunk
+```
+
+```{sql connection=con}
+SELECT * FROM whalesafe_v3.INFORMATION_SCHEMA.TABLES ORDER BY table_name;
+```
+
+```{sql connection=con}
+SELECT
+ -- * 
+ -- EXCEPT(is_generated, generation_expression, is_stored, is_updatable)
+ data_type, column_name, is_partitioning_column
+FROM
+ whalesafe_v3.INFORMATION_SCHEMA.COLUMNS
+WHERE
+ table_name="ais_segments"
+ORDER BY
+ data_type, column_name;
+```
+
+```{sql connection=con}
+SELECT * EXCEPT(linestring, point)
+FROM ais_segments 
+WHERE DATE(timestamp) > (CURRENT_DATE() - 7)
+ORDER BY timestamp DESC
+LIMIT 10;
 ```
