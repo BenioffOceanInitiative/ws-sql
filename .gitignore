@@ -2,8 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
-<<<<<<< Updated upstream
 .httr-oauth
-=======
 .DS_Store
->>>>>>> Stashed changes
