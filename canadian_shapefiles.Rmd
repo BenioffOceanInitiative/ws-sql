@@ -242,4 +242,20 @@ writeOGR(spdf_voluntary , dsn = '.', layer = 'voluntary ', driver = "ESRI Shapef
 ```
 
 
+## GeoJSON
+
+Recommend GeoJSON over shapefiles because:
+
+1. Single file (vs many)
+2. Github renders it automatically
+3. Preferred format for web mapping, like for LGND mapper
+
+
+```{r}
+library(sf)
+
+dynamic_A <- read_sf("RMD/dynamic_A/dynamic_A.shp")
+
+write_sf(dynamic_A, "RMD/dynamic_A.geojson")
+```
 
