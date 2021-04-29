@@ -265,7 +265,7 @@ dynamic_A <- read_sf("RMD/dynamic_A/dynamic_A.shp") %>%
   #st_transform(3857) # web mercator crs
 st_crs(dynamic_A) <- crs_wgs84
 # st_bbox(dynamic_A)
-write_sf(dynamic_A, "RMD/dynamic_A.geojson", delete_layer=T)
+write_sf(dynamic_A, "RMD/dynamic_A.geojson", delete_dsn=T)
 ```
 
 
