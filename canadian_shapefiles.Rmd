@@ -254,8 +254,12 @@ Recommend GeoJSON over shapefiles because:
 ```{r}
 library(sf)
 
-dynamic_A <- read_sf("RMD/dynamic_A/dynamic_A.shp")
+dynamic_A <- read_sf("RMD/dynamic_A/dynamic_A.shp") %>% 
+  st_transform(4326) # geographic crs
+# st_crs(dynamic_A)
 
 write_sf(dynamic_A, "RMD/dynamic_A.geojson")
 ```
+
+
 
