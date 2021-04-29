@@ -254,18 +254,16 @@ Recommend GeoJSON over shapefiles because:
 ```{r}
 library(sf)
 
+dirs <- list.dirs("RMD")[-1]
 
-aruba <- read_sf("https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson") %>% 
-  filter(ADMIN == "Aruba")
-crs_wgs84 <- st_crs(aruba)
-write_sf(aruba, "RMD/aruba.geojson")
-
-dynamic_A <- read_sf("RMD/dynamic_A/dynamic_A.shp") %>% 
-  st_transform(4326) # geographic crs
-  #st_transform(3857) # web mercator crs
-st_crs(dynamic_A) <- crs_wgs84
-# st_bbox(dynamic_A)
-write_sf(dynamic_A, "RMD/dynamic_A.geojson", delete_dsn=T)
+for (dir in list.dirs("RMD")[-1]){
+  shp <- list.files(dir, ".*shp$", full.names = T)
+  geo <- glue("{dir}.geojson")
+  
+  read_sf(shp) %>% 
+    st_transform(4326) %>% # geographic crs
+    write_sf(geo, delete_dsn=T)
+}
 ```
 
 
