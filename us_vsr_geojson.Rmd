@@ -1,6 +1,8 @@
 ---
 title: "us_vsr_geojson"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -12,25 +14,69 @@ knitr::opts_chunk$set(echo = TRUE)
 See [US VSR zone data scraper · Issue #2 · BenioffOceanInitiative/ws-sql](https://github.com/BenioffOceanInitiative/ws-sql/issues/2)
 
 ```{r}
-library(XML)
-library(RCurl)
-library(geojsonsf)
-library(geojsonio)
-library(here)
-library(sf)
-library(tidyverse)
-library(xml2)
+if (!require(librarian)){
+  install.packages("librarian")
+  library(librarian)
+}
+shelf(
+  # geojsonio,
+  # geojsonsf,
+  dplyr,
+  glue,
+  here,
+  # RCurl,
+  purrr,
+  sf,
+  tidyr,
+  # tidyverse,
+  # XML,
+  xml2)
 # library(RJSONIO)
 
-url  <- "https://apps-nefsc.fisheries.noaa.gov/cgi-bin/mammalmaps/xmlgenDMA.pl"
-xml  <- RCurl::getURL(url)
-data <- xmlTreeParse(xml, useInternalNodes = T)
-d    <- read_xml(xml) # alternative method of reading in xml
-# data_list <- xmlToList(xmlParse(xml), addAttributes = T, simplify = T)
+url <- "https://apps-nefsc.fisheries.noaa.gov/cgi-bin/mammalmaps/xmlgenDMA.pl"
+x   <- read_xml(url) # alternative method of reading 
 
-# find all nodes, attributes, number of variables, etc. 
-# still need to expand to include
-# all attributes (probably with a function)
+nodes <- xml_find_all(x, "//dma")
+
+d <- nodes %>% 
+  xml_attrs() %>% 
+  map_df(~as.list(.))
+
+waypoints <- map_df(d$id, function(id){
+  nodes %>% 
+    xml_find_first(glue("//dma[@id='{id}']/child::node()")) %>% 
+    xml_attrs() %>%
+    map_df(~as.list(.)) %>% 
+    mutate(
+      id = !!id) }) %>% 
+  nest(waypoints = any_of(c("lon","lat")))
+
+d <- d %>% 
+  left_join(
+    waypoints,
+    by = "id")
+
+
+# https://r-spatial.github.io/sf/articles/sf3.html#geometrical-operations
+b0 = st_polygon(list(rbind(c(-1,-1), c(1,-1), c(1,1), c(-1,1), c(-1,-1))))
+b1 = b0 + 2
+b2 = b0 + c(-0.2, 2)
+x = st_sfc(b0, b1, b2)
+a0 = b0 * 0.8
+a1 = a0 * 0.5 + c(2, 0.7)
+a2 = a0 + 1
+a3 = b0 * 0.5 + c(2, -0.5)
+y = st_sfc(a0,a1,a2,a3)
+plot(x, border = 'red')
+plot(y, border = 'green', add = TRUE)
+
+
+d <- d %>% 
+  mutate(
+    ply =
+  )
+
+# TODO: still need to expand to include all attributes (probably with a function)
 nodes <- xml_find_all(d, "//dma")
 node_id <- xml_attr(nodes, "id")
 node_name <- xml_attr(nodes, "name")
