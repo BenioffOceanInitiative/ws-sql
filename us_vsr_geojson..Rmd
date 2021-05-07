@@ -28,7 +28,9 @@ data <- xmlTreeParse(xml, useInternalNodes = T)
 d    <- read_xml(xml) # alternative method of reading in xml
 # data_list <- xmlToList(xmlParse(xml), addAttributes = T, simplify = T)
 
-# find all nodes, attributes, number of variables, etc.
+# find all nodes, attributes, number of variables, etc. 
+# still need to expand to include
+# all attributes (probably with a function)
 nodes <- xml_find_all(d, "//dma")
 node_id <- xml_attr(nodes, "id")
 node_name <- xml_attr(nodes, "name")
@@ -55,6 +57,10 @@ sf <- df %>%
 # sf to geoJSON - not 100% sure if this is working
 geo <- sf %>% 
   sf_geojson()
+
+# add duplicate waypoint for each polygon
+
+# still need to go back in and add all attributes
 ```
 
 
@@ -78,7 +84,16 @@ geo <- geojson_json(
   
 
 
+# make df of attributes
+d_list <- 
 
+
+for (i in 1:length(d_list)) {
+  d_list_attrs <- d_list_attrs %>% 
+    
+    bind_rows(d_list[i])}
+    
+    bind_rows(d_list[i]$dma$.attrs) %>% 
 
 
 
