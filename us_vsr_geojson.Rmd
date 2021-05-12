@@ -13,14 +13,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 See [US VSR zone data scraper · Issue #2 · BenioffOceanInitiative/ws-sql](https://github.com/BenioffOceanInitiative/ws-sql/issues/2)
 
-```{r}
+```{r warning=F}
 if (!require(librarian)){
   install.packages("librarian")
   library(librarian)
 }
 shelf(
   # geojsonio,
-  # geojsonsf,
+  geojsonsf,
   dplyr,
   glue,
   here,
@@ -44,19 +44,41 @@ d <- nodes %>%
 
 waypoints <- map_df(d$id, function(id){
   nodes %>% 
-    xml_find_first(glue("//dma[@id='{id}']/child::node()")) %>% 
+    # xml_find_first(glue("//dma[@id='{id}']/child::node()")) %>% 
+    # use xml_find_all to prevent duplicating same lat/lng value
+    xml_find_all(glue("//dma[@id='{id}']/child::node()")) %>% 
     xml_attrs() %>%
-    map_df(~as.list(.)) %>% 
+    # duplicate first lat/lon values for creating polygons
+    bind_cols(.[[1]]) %>% 
+    map_df(~as.list(.)) %>%
     mutate(
-      id = !!id) }) %>% 
-  nest(waypoints = any_of(c("lon","lat")))
+      id = !!id) }) %>% nest(waypoints = any_of(c("lon","lat"))) 
 
 d <- d %>% 
   left_join(
     waypoints,
-    by = "id")
+    by = "id") 
+
+sf <- map2_df(d$id, d$waypoints, function(id, waypoints){
+  waypoints %>% 
+    as_tibble() %>% 
+    st_as_sf(coords = c("lat", "lon"), crs = 4326) %>% 
+    summarize(geometry = st_combine(geometry)) %>% 
+    st_cast("POLYGON") %>% 
+    map_df(~as.list(.)) %>% 
+    mutate(id = !!id) })
+
+d <- d %>%
+  left_join(sf, by = "id") %>% 
+  mutate(geojson = geometry %>% sfc_geojson())
+```
 
 
+
+
+# old ----
+
+```{r warning=F}
 # https://r-spatial.github.io/sf/articles/sf3.html#geometrical-operations
 b0 = st_polygon(list(rbind(c(-1,-1), c(1,-1), c(1,1), c(-1,1), c(-1,-1))))
 b1 = b0 + 2
@@ -70,11 +92,6 @@ y = st_sfc(a0,a1,a2,a3)
 plot(x, border = 'red')
 plot(y, border = 'green', add = TRUE)
 
-
-d <- d %>% 
-  mutate(
-    ply =
-  )
 
 # TODO: still need to expand to include all attributes (probably with a function)
 nodes <- xml_find_all(d, "//dma")
@@ -103,10 +120,6 @@ sf <- df %>%
 # sf to geoJSON - not 100% sure if this is working
 geo <- sf %>% 
   sf_geojson()
-
-# add duplicate waypoint for each polygon
-
-# still need to go back in and add all attributes
 ```
 
 
