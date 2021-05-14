@@ -28,6 +28,7 @@ shelf(
   dplyr,
   glue,
   here,
+  leaflet,
   purrr,
   sf,
   tidyr,
@@ -61,7 +62,7 @@ p <- d %>%
   unnest(waypoints) %>% 
   select(id, lon, lat) %>% 
   group_by(id) %>% 
-  st_as_sf(coords = c("lat", "lon"), crs = 4326) %>% 
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) %>% 
   summarize(sfc_geometry = st_combine(geometry)) %>% 
   st_cast("POLYGON") %>% 
   left_join(
@@ -69,6 +70,13 @@ p <- d %>%
       select(-waypoints),
     by = "id")
 
-st_write(p, geo)
+st_write(p, geo, delete_dsn=T)
 ```
+
+```{r}
+leaflet(p) %>%
+  addProviderTiles(providers$Esri.OceanBasemap) %>% 
+  addPolygons() 
+```
+
 
