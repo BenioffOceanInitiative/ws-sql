@@ -283,9 +283,6 @@ tb <- bq_project_query(
   query = "SELECT msgid, timestamp, seg_id, lat, lon FROM
     `world-fishing-827.pipe_production_v20201001.messages_scored_20210518`
     LIMIT 10;")
-# Error: Job 'benioff-ocean-initiative.job_yobEApcCD046QaUBfVOdgFf14LPK.US' failed
-# x Access Denied: Table world-fishing-827:pipe_production_v20201001.messages_scored_20210518:
-#   User does not have permission to query table
-#     world-fishing-827:pipe_production_v20201001.messages_scored_20210518. [accessDenied]
+bq_table_download(tb)
 ```
 
