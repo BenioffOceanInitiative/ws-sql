@@ -250,18 +250,13 @@ research_satellite_timing_table = "world-fishing-827.gfw_research.pipe_v20201001
 mdate <- Sys.Date() - 2
 
 sql <- readLines(here("gfw/test_glue2.sql")) %>% 
-sql <- readLines(here("gfw/tmp.sql")) %>% 
   paste(collapse = "\n") %>% 
-  glue(
-    .open = "{{",
-    .close = "}}")
-cat(sql)
+  glue() # cat(sql)
 
-# sql <- "SELECT CURRENT_DATE() as the_date;"
 tb <- bq_project_query(
   x = "benioff-ocean-initiative",
   query = sql)
-#bq_table_download(tb)
+# bq_table_download(tb)
 ```
 
 

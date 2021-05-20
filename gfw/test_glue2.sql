@@ -5,8 +5,8 @@ SELECT
   lat,
   lon
 FROM
-  `{{ messages_scored_table }}`
-  WHERE _TABLE_SUFFIX = '{{ format(mdate, "%Y%m%d") }}'
+  `{ messages_scored_table }`
+  WHERE _TABLE_SUFFIX = '{ format(mdate, "%Y%m%d") }'
   AND (receiver is null -- receiver is null is important,
                         -- otherwise null spire positions are ignored
     OR receiver in ('rORBCOMM000','rORBCOMM999')
@@ -14,7 +14,7 @@ FROM
       SELECT
         receiver
   FROM
-    `{{ research_satellite_timing_table }}`
+    `{ research_satellite_timing_table }`
   WHERE _partitiontime = '{{ mdate }}')
   AND ABS(dt) > 60
 ))
