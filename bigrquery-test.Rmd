@@ -1,6 +1,8 @@
 ---
 title: "bigrquery-test"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -26,9 +28,14 @@ For non-interactive usage, using:
 
 ```{r}
 library(bigrquery)
+library(here)
 
 # ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com
-auth_json = '/home/admin/Benioff Ocean Initiative-454f666d1896.json'
+# auth_json = '/home/admin/Benioff Ocean Initiative-454f666d1896.json'
+auth_json = '/Volumes/GoogleDrive/My Drive/projects/whalesafe/data/gfw/Benioff Ocean Initiative-454f666d1896.json'
+# retrying with new Google Console Service Account API Key after getting Access Denied
+# auth_json = '/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Credentials/benioff-ocean-initiative-27213fdae179.json'
+stopifnot(file.exists(auth_json))
 bq_auth(path = auth_json)
 ```
 
@@ -95,6 +102,7 @@ connection_close(con)
 ```{sql connection=con, eval=F}
 SELECT * FROM ais_segments LIMIT 10;
 ```
+
 ```
 Error: Cannot query over table 'ais_data' without a filter over column(s) 'timestamp' that can be used for partition elimination [invalidQuery]
 In addition: Warning message:
@@ -102,6 +110,8 @@ In class(obj) <- c("scalar", class(obj)) :
   Setting class(x) to multiple strings ("scalar", "SQL", ...); result will no longer be an S4 object
 Failed to execute SQL chunk
 ```
+
+
 
 ```{sql connection=con, eval=F}
 SELECT * FROM ais_segments 
@@ -146,3 +156,133 @@ WHERE DATE(timestamp) > (CURRENT_DATE() - 7)
 ORDER BY timestamp DESC
 LIMIT 10;
 ```
+
+
+## Parameters
+
+References:
+
+* [Running parameterized queries  |  BigQuery  |  Google Cloud](https://cloud.google.com/bigquery/docs/parameterized-queries)
+* [Named parameters  |  BigQuery  |  Google Cloud](https://cloud.google.com/bigquery/docs/samples/bigquery-query-params-named)
+* [sql - how to set named parameter on bigquery query - Stack Overflow](https://stackoverflow.com/questions/42628367/how-to-set-named-parameter-on-bigquery-query)
+* [Query parameters in the BigQuery UI [35905569] - Visible to Public - Issue Tracker](https://issuetracker.google.com/issues/35905569?pli=1)
+* [Run Queries Safely](https://db.rstudio.com/best-practices/run-queries-safely/)
+* [Submit query to BigQuery — bq_query • bigrquery](https://bigrquery.r-dbi.org/reference/bq_query.html)
+* [BigQuery jobs: perform a job — api-perform • bigrquery](https://bigrquery.r-dbi.org/reference/api-perform.html)
+* [Explicitly define query parameters — bq_param • bigrquery](https://bigrquery.r-dbi.org/reference/bq_param.html)
+* [S3 classes that reference remote BigQuery datasets, tables and jobs — bq_refs • bigrquery](https://bigrquery.r-dbi.org/reference/bq_refs.html)
+* [Dynamic queries with BigQuery from R - Stack Overflow](https://stackoverflow.com/questions/51747814/dynamic-queries-with-bigquery-from-r)
+
+```{r}
+tb <- bq_project_query(
+  x = "benioff-ocean-initiative",
+  query = "SELECT CURRENT_DATE() as the_date;")
+bq_table_download(tb)
+
+
+sql <- "
+  SELECT * EXCEPT(linestring, point)
+  FROM ais_segments 
+  WHERE DATE(timestamp) > (CURRENT_DATE() - 7)
+  ORDER BY timestamp DESC
+  LIMIT 10;"
+# ds <- bq_dataset("benioff-ocean-initiative", "whalesafe_v3")
+tb <- bq_dataset_query(
+  x = "benioff-ocean-initiative.whalesafe_v3",
+  query = sql,
+  billing = "benioff-ocean-initiative")
+bq_table_download(tb)
+
+
+library(dplyr)
+library(here)
+
+sql <- readLines(here("gfw/test.sql")) %>% 
+  paste(collapse = "\n") 
+cat(sql)
+
+# sql <- "SELECT CURRENT_DATE() as the_date;"
+tb <- bq_project_query(
+  x = "benioff-ocean-initiative",
+  query = sql,
+  parameters=list(
+    messages_scored_table = "world-fishing-827.pipe_production_v20201001.messages_scored_", 
+    research_satellite_timing_table = "world-fishing-827.gfw_research.pipe_v20201001_satellite_timing"))
+#bq_table_download(tb)
+```
+
+```
+Query parameters cannot be used in place of table names at [22:3] [invalidQuery]
+```
+
+* [airflow - Is there a way to use dynamic dataset name in bigquery - Stack Overflow](https://stackoverflow.com/questions/60397307/is-there-a-way-to-use-dynamic-dataset-name-in-bigquery)
+
+
+```{r}
+library(glue)
+
+messages_scored_table = "world-fishing-827.pipe_production_v20201001.messages_scored_"
+research_satellite_timing_table = "world-fishing-827.gfw_research.pipe_v20201001_satellite_timing"
+
+sql <- readLines(here("gfw/test_glue.sql")) %>% 
+  paste(collapse = "\n") %>% 
+  glue(
+    .open = "{{",
+    .close = "}}")
+cat(sql)
+
+# sql <- "SELECT CURRENT_DATE() as the_date;"
+tb <- bq_project_query(
+  x = "benioff-ocean-initiative",
+  query = sql)
+#bq_table_download(tb)
+```
+
+```
+x Not found: Table world-fishing-827:pipe_production_v20201001.messages_scored_ was not found in location US
+```
+
+```{r}
+library(glue)
+
+messages_scored_table = "world-fishing-827.pipe_production_v20201001.messages_scored_*"
+research_satellite_timing_table = "world-fishing-827.gfw_research.pipe_v20201001_satellite_timing"
+mdate <- Sys.Date() - 2
+
+sql <- readLines(here("gfw/test_glue2.sql")) %>% 
+  paste(collapse = "\n") %>% 
+  glue() # cat(sql)
+
+tb <- bq_project_query(
+  x = "benioff-ocean-initiative",
+  query = sql)
+# bq_table_download(tb)
+```
+
+
+```{r}
+library(bigrquery)
+
+# ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com
+auth_json = '/Volumes/GoogleDrive/My Drive/projects/whalesafe/data/gfw/Benioff Ocean Initiative-454f666d1896.json'
+bq_auth(path = auth_json)
+
+# works
+tb <- bq_project_query(
+  x = "benioff-ocean-initiative",
+  query = "SELECT * EXCEPT(linestring, point)
+    FROM `benioff-ocean-initiative.whalesafe_v3.ais_segments`
+    WHERE DATE(timestamp) > (CURRENT_DATE() - 7)
+    LIMIT 10;")
+# Running job 'benioff-ocean-initiative.job_m8HLodpfodohXd2cdbIdFtA3hxCy.US' [|]  4s
+# Complete
+# Billed: 22.02 MB
+
+tb <- bq_project_query(
+  x = "benioff-ocean-initiative",
+  query = "SELECT msgid, timestamp, seg_id, lat, lon FROM
+    `world-fishing-827.pipe_production_v20201001.messages_scored_20210518`
+    LIMIT 10;")
+bq_table_download(tb)
+```
+
