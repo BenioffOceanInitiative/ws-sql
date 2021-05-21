@@ -7,15 +7,28 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Canadian zone data web scraper
+```{r include=FALSE}
+# libraries ---
+if (!require(librarian)){
+  install.packages("librarian")
+  library(librarian)
+}
+shelf(
+  dplyr,
+  geojsonsf,
+  glue,
+  here,
+  purrr,
+  readr,
+  sf,
+  tidyr)
+```
+
+## Canadian zone data web scraper ----
 
 See [Canadian zone data web scraper · Issue #1 · BenioffOceanInitiative/ws-sql](https://github.com/BenioffOceanInitiative/ws-sql/issues/1)
 
 ```{r}
-library(geojsonsf)
-library(here)
-library(sf)
-
 ply_geojson <- here("data/nis.ccg-gcc.gc.ca_NAVWARNs.geojson")
 ply <- geojson_sf(ply_geojson)
 ply <- sf::read_sf(ply_geojson)

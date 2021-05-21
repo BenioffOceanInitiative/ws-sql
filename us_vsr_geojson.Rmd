@@ -18,7 +18,6 @@ See [US VSR zone data scraper · Issue #2 · BenioffOceanInitiative/ws-sql](http
 # - injecting into BigQuery
 # - setup as a cron job service
 
-
 # libraries ---
 if (!require(librarian)){
   install.packages("librarian")
@@ -30,10 +29,14 @@ shelf(
   here,
   leaflet,
   purrr,
+  readr,
   sf,
   tidyr,
+  usethis,
   xml2)
+```
 
+```{r warning=F}
 # variables ----
 url <- "https://apps-nefsc.fisheries.noaa.gov/cgi-bin/mammalmaps/xmlgenDMA.pl"
 geo <- here("data/usa_nefsc_dyn-mgt-areas.geojson")
@@ -78,5 +81,3 @@ leaflet(p) %>%
   addProviderTiles(providers$Esri.OceanBasemap) %>% 
   addPolygons() 
 ```
-
-
