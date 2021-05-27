@@ -1,6 +1,8 @@
 ---
 title: "gmail data scraper"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ````{r setup, include=FALSE}
@@ -26,12 +28,21 @@ shelf(
 ## Canadian gmail data scraper ----
 reads in and saves email attachments received by autobenioffocean@gmail.com using gmailr 
 
+* [Non-interactive auth](https://cran.r-project.org/web/packages/gargle/vignettes/non-interactive-auth.html)
+
 ### set up gmailr
 ```{r}
-gmailr_app <- here("credentials.json") %>%  
-  gm_auth_configure(path = .) 
 email <- "autobenioffocean@gmail.com"
-gm_auth(email = email, path = gmailr_app)
+
+credentials_json <- switch(
+  Sys.info()[["effective_user"]],
+  #bbest       = "~/private/sa-autobenioffocean@gmail.com_credentials_2.json",
+  bbest       = "~/private/oauth-autobenioffocean@gmail.com_credentials_3.json",
+  cdobbelaere = "~/TBD.json")
+stopifnot(file.exists(credentials_json))
+
+gm_auth_configure(path = credentials_json)
+gm_auth() # TODO: get working non-interactively
 ```
 
 ### functions
