@@ -47,7 +47,7 @@ bq_auth(path = auth_json)
 #   billing = "benioff-ocean-initiative")
 # con
 
-con <- connect::connection_open(
+con <- connections::connection_open(
   bigrquery::bigquery(),
   project = "benioff-ocean-initiative",
   dataset = "whalesafe_v3",
