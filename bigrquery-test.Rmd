@@ -1,12 +1,16 @@
 ---
 title: "bigrquery-test"
-output: html_document
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
 editor_options: 
   chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = T, warning = F, message = F)
 ```
 
 ## Connect to BigQuery
@@ -25,20 +29,19 @@ if (!require(librarian)){
   library(librarian)
 }
 shelf(
-  bigrquery, connections, DBI, here)
+  bigrquery, connections, DBI, dplyr, here)
 
 # ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com
 dir_auth_json <- switch(
   Sys.info()[["effective_user"]],
   calliesteffen = "/Volumes/GoogleDrive/My Drive/whalesafe/data/gfw",
   bbest         = "/Volumes/GoogleDrive/My Drive/projects/whalesafe/data/gfw",
-  rachel        = "~/TBD.json",
+  rachelrhodes  = "/Volumes/GoogleDrive/My Drive/projects/whalesafe/data/gfw/Benioff Ocean Initiative-454f666d1896.json",
   cdobbelaere   = "~/TBD.json")
 auth_json <- file.path(dir_auth_json, "Benioff Ocean Initiative-454f666d1896.json")
 stopifnot(file.exists(auth_json))
 
-stopifnot(file.exists(auth_json))
-bq_auth(path = auth_json)
+bigrquery::bq_auth(path = auth_json)
 
 # con <- DBI::dbConnect(
 #   bigrquery::bigquery(),
@@ -174,7 +177,7 @@ LIMIT 10;
 
 ## Other 2
 
-```{r}
+```{r, eval=F}
 # get date
 tb <- bq_project_query(
   x = "benioff-ocean-initiative",
@@ -199,7 +202,9 @@ bq_table_download(tb)
 sql <- readLines(here("gfw/test.sql")) %>% 
   paste(collapse = "\n") 
 cat(sql)
+```
 
+```{r, eval=F}
 # sql <- "SELECT CURRENT_DATE() as the_date;"
 tb <- bq_project_query(
   x = "benioff-ocean-initiative",
@@ -214,7 +219,7 @@ tb <- bq_project_query(
 Query parameters cannot be used in place of table names at [22:3] [invalidQuery]
 ```
 
-```{r}
+```{r, eval=F}
 library(glue)
 
 messages_scored_table = "world-fishing-827.pipe_production_v20201001.messages_scored_"
@@ -238,7 +243,7 @@ tb <- bq_project_query(
 x Not found: Table world-fishing-827:pipe_production_v20201001.messages_scored_ was not found in location US
 ```
 
-```{r}
+```{r, eval=F}
 library(glue)
 
 messages_scored_table = "world-fishing-827.pipe_production_v20201001.messages_scored_*"
