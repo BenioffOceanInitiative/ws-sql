@@ -36,7 +36,7 @@ dir_auth_json <- switch(
   Sys.info()[["effective_user"]],
   calliesteffen = "/Volumes/GoogleDrive/My Drive/whalesafe/data/gfw",
   bbest         = "/Volumes/GoogleDrive/My Drive/projects/whalesafe/data/gfw",
-  rachelrhodes  = "/Volumes/GoogleDrive/My Drive/projects/whalesafe/data/gfw/Benioff Ocean Initiative-454f666d1896.json",
+  rachelrhodes  = "/Volumes/GoogleDrive/My Drive/projects/whalesafe/data/gfw",
   cdobbelaere   = "~/TBD.json")
 auth_json <- file.path(dir_auth_json, "Benioff Ocean Initiative-454f666d1896.json")
 stopifnot(file.exists(auth_json))
