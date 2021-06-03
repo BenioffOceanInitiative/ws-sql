@@ -5,7 +5,7 @@ WhaleSafe standard query language processing with BigQuery
 
 These web pages (\*.html) are typically rendered from Rmarkdown (\*.Rmd):
 
-<!-- Jekyll rendering: https://marineenergy.github.io/apps/ -->
+<!-- Jekyll rendering: -->
 {% for file in site.static_files %}
   {% if file.extname == '.html' %}
 * [{{ file.basename }}]({{ site.baseurl }}{{ file.path }})
