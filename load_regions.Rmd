@@ -1,0 +1,77 @@
+---
+title: "load_regions"
+author: "Ben Best"
+date: "9/2/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+* [Marine Regions · United States Exclusive Economic Zone (EEZ)](https://www.marineregions.org/gazetteer.php?p=details&id=8456)
+
+```{r}
+librarian::shelf(
+  dplyr, glue, here, lwgeom, purrr, sf, tibble)
+
+source(here::here("scripts/db.R"))
+
+usa_url <- "https://geo.vliz.be/geoserver/wfs?request=getfeature&service=wfs&version=1.1.0&typename=MarineRegions:eez&outputformat=json&filter=%3CPropertyIsEqualTo%3E%3CPropertyName%3Emrgid%3C%2FPropertyName%3E%3CLiteral%3E8456%3C%2FLiteral%3E%3C%2FPropertyIsEqualTo%3E"
+usa_json  <- here("data/usa_parts.geojson")
+fl_json   <- here("data/fl_line.geojson") # manually created in QGIS
+rgns_json <- here("data/ws-rgns.geojson")
+
+if (!file.exists(usa_json)){
+  usa   <- sf::read_sf(usa_url)
+  
+  usa_parts <- st_cast(usa, "POLYGON") %>% 
+    rownames_to_column("rowid") %>% 
+    select(rowid, geometry) %>% 
+    st_as_sf(sf_column_name = "geometry")
+  
+  write_sf(usa_parts, usa_json)
+}
+
+if (!file.exists(rgns_json)){
+  usa_parts <- read_sf(usa_json)
+  fl_ln  <- read_sf(fl_json)
+  
+  # split
+  rgns <- lwgeom::st_split(usa_parts, fl_ln) %>% # SLOW: 15 minutes
+    st_collection_extract(c("POLYGON"))
+  
+  # add ctr_lon to differentiate
+  rgns <- rgns %>% 
+    mutate(
+      pt_ctr = st_centroid(geometry),
+      ctr_lon = map_dbl(pt_ctr, ~ st_coordinates(.x)[1]),
+      ctr_lat = map_dbl(pt_ctr, ~ st_coordinates(.x)[2])) %>% 
+    select(-pt_ctr) %>% 
+    arrange(rowid, ctr_lon) %>% 
+    rownames_to_column("rowid2")
+  
+  rgns <- rgns %>% 
+    filter(ctr_lon < -80.5) %>% 
+    arrange(ctr_lon) %>% 
+    mutate(
+      region = c("USA_West", "USA_GoMex")) %>% 
+    select(region, geometry) %>% 
+    rbind(
+      # East
+      rgns %>% 
+        # st_drop_geometry() %>% 
+        filter(ctr_lon > -80.5) %>% 
+        st_union()  %>% 
+        st_as_sf() %>% 
+        mutate(
+          region = "USA_East") %>% 
+        rename(geometry = x))
+
+  write_sf(rgns, rgns_json)
+}
+rgns <- read_sf(rgns_json)
+```
+
