@@ -3,6 +3,8 @@ title: "gfw-spire-only"
 author: "Ben Best"
 date: "6/10/2021"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -37,9 +39,24 @@ sql <- readLines("gfw/research_daily.sql") %>%
 prj <- projects[[1]]
 
 tb <- try(bq_project_query(prj, sql))
+# Running job 'benioff-ocean-initiative.job_WDwrB8T1h5bcmuhuZSTH...
+# Complete
+# Billed: 31.08 GB # before sql: AND source = 'spire'
+# Billed: 31.58 GB # after "
 
-if (!"try-error" %in% class(tb))
-   try(bq_table_download(tb, max_results = 10))
+if (!"try-error" %in% class(tb)){
+  bq_table_nrow(tb) # 41,484,745 # before sql: AND source = 'spire'
+  bq_table_nrow(tb) # 27,476,427 # after "
+  df <- try(bq_table_download(tb, n_max = 1000))
+  # View(df)
+  # table(df$source)
+  
+  df$regions[[1]]
+  df %>% 
+    select(-regions) %>% 
+    readr::write_csv(glue("data/gfw-spire-only_{date}.csv"))
+  # Flat files can't store the list column `regions`
+}
 ```
 
 ```
@@ -53,6 +70,7 @@ tbls <- list(
     SELECT * FROM `{ messages_scored_table }*` WHERE _TABLE_SUFFIX = '20210622'"),
   research_satellite_timing_table = 
     glue("SELECT * FROM `{ research_satellite_timing_table }`"),
+   # SELECT * FROM `world-fishing-827.gfw_research.pipe_v20201001_satellite_timing` LIMIT 2
   # x Access Denied: Table world-fishing-827:gfw_research.pipe_v20201001_satellite_timing: User does not have permission to query table world-fishing-827:gfw_research.pipe_v20201001_satellite_timing. [accessDenied]
   static_sunrise_dataset_and_table = glue("
     SELECT * FROM `{ static_sunrise_dataset_and_table }`"), # denied
@@ -61,7 +79,7 @@ tbls <- list(
   satellite_positions_one_second_resolution = glue("
     SELECT * FROM `{ satellite_positions_one_second_resolution }*` WHERE _TABLE_SUFFIX = '20210622'"))
 
-for (tbl in names(tbls)){ # tbl = names(tbls)[3]
+for (tbl in names(tbls)){ # tbl = names(tbls)[2]
   table <- get(tbl)
   sql   <- glue("{tbls[[tbl]]} LIMIT 2")
   message(glue("{tbl}: {get(tbl)}\n\n{sql}\n", .trim = F))

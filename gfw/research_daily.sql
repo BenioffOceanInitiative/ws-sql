@@ -91,6 +91,7 @@ WITH
     FROM
       `{ messages_scored_table }*`
     WHERE _TABLE_SUFFIX = YYYYMMDD( toDAY() )
+    AND source = 'spire'
     AND (receiver is null -- receiver is null is important,
                           -- otherwise null spire positions are ignored
       -- OR receiver in ('rORBCOMM000', 'rORBCOMM999') -- exclude ORBCOM
@@ -151,7 +152,7 @@ WITH
       day
   ),
 
-  -- Eliminates dulicate messages with the same msg_id, but only if lat,lon is nearly identical
+  -- Eliminates duplicate messages with the same msg_id, but only if lat,lon is nearly identical
   -- NB: the window function is ordered by timestamp lat and lon to make the ordering deterministic
   -- so if there are different lat/lon in the same second with the same msg_id, we will always get the
   -- the same record
