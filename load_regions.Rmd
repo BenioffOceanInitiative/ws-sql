@@ -135,33 +135,10 @@ if (!bq_table_exists(bq_tbl_rgns) | update_rgns){
        UPDATE {bq_tbl_rgns} SET geog = ST_GEOGFROMTEXT(wkt) WHERE TRUE;
        ALTER TABLE {bq_tbl_rgns} DROP COLUMN IF EXISTS wkt"))
   # NOTE: UPDATE requires WHERE TRUE; try in console editor to see errors
-  
-  rgns <- bq_table_download(bq_tbl_rgns) %>% 
-    st_as_sf(wkt = "geog", crs = 4326)
-
 }
 
-
-
-
-
-bq_table_upload(bq_rgns, rgns_wkt)
-
-
-bq_mtcars <- bq_table_create(
-  ds,
-  "mtcars",
-  friendly_name = "Motor Trend Car Road Tests",
-  description = "The data was extracted from the 1974 Motor Trend US magazine",
-  labels = list(category = "example")
-)
-bq_mtcars <- bq_table(ds, "mtcars")
-bq_table_exists(bq_mtcars)
-
-bq_table_upload(bq_mtcars, mtcars)
-bq_table_exists(bq_mtcars)
-
-rgns
+rgns_bq <- bq_table_download(bq_tbl_rgns) %>% 
+  st_as_sf(wkt = "geog", crs = 4326)
 ```
 
 
