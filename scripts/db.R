@@ -9,7 +9,8 @@ shelf(
 dir_auth_json <- switch(
   Sys.info()[["effective_user"]],
   calliesteffen = "/Volumes/GoogleDrive/My Drive/whalesafe/data/gfw",
-  bbest         = "/Volumes/GoogleDrive/My Drive/projects/whalesafe/data/gfw",
+  #bbest         = "/Volumes/GoogleDrive/My Drive/projects/whalesafe/data/gfw",
+  bbest         = "/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/gfw",
   rachelrhodes  = "/Volumes/GoogleDrive/.shortcut-targets-by-id/1crBGnOPGiKdWbtOLQhzgdJKA1ztZBzTM/gfw",
   cdobbelaere   = "~/TBD.json")
 auth_json <- file.path(dir_auth_json, "Benioff Ocean Initiative-454f666d1896.json")
@@ -23,11 +24,11 @@ con <<- DBI::dbConnect(
   dataset = "whalesafe_v3",
   billing = "benioff-ocean-initiative")
 # con
-
 conn <<- connections::connection_open(
   bigrquery::bigquery(),
   project = "benioff-ocean-initiative",
-  dataset = "whalesafe_v3",
+  # dataset = "whalesafe_v3",
+  dataset = "whalesafe_v4",
   billing = "benioff-ocean-initiative",
   use_legacy_sql = FALSE)
 # conn

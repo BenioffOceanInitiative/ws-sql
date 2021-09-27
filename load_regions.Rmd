@@ -11,6 +11,9 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
+## Create Regions
+
 Sources:
 * [Marine Regions · United States Exclusive Economic Zone (EEZ)](https://www.marineregions.org/gazetteer.php?p=details&id=8456)
 * [Marine Regions · Gulf of Saint Lawrence (IHO Sea Area)](https://www.marineregions.org/gazetteer.php?p=details&id=4290)
@@ -18,8 +21,6 @@ Sources:
 ```{r}
 librarian::shelf(
   dplyr, glue, here, lwgeom, purrr, sf, tibble)
-
-source(here::here("scripts/db.R"))
 
 usa_url <- "https://geo.vliz.be/geoserver/wfs?request=getfeature&service=wfs&version=1.1.0&typename=MarineRegions:eez&outputformat=json&filter=%3CPropertyIsEqualTo%3E%3CPropertyName%3Emrgid%3C%2FPropertyName%3E%3CLiteral%3E8456%3C%2FLiteral%3E%3C%2FPropertyIsEqualTo%3E"
 
@@ -29,18 +30,19 @@ usa_json     <- here("data/usa_parts.geojson")
 fl_json      <- here("data/fl_line.geojson") # manually created in QGIS
 rgns_json    <- here("data/ws-rgns.geojson")
 
-if (!file.exists(usa_json)){
-  usa <- sf::read_sf(usa_url)
-  
-  usa_parts <- st_cast(usa, "POLYGON") %>% 
-    rownames_to_column("rowid") %>% 
-    select(rowid, geometry) %>% 
-    st_as_sf(sf_column_name = "geometry")
-  
-  write_sf(usa_parts, usa_json)
-}
-
 if (!file.exists(rgns_json)){
+  
+  if (!file.exists(usa_json)){
+    usa <- sf::read_sf(usa_url)
+    
+    usa_parts <- st_cast(usa, "POLYGON") %>% 
+      rownames_to_column("rowid") %>% 
+      select(rowid, geometry) %>% 
+      st_as_sf(sf_column_name = "geometry")
+    
+    write_sf(usa_parts, usa_json)
+  }
+  
   usa_parts <- read_sf(usa_json)
   fl_ln     <- read_sf(fl_json)
 
@@ -89,4 +91,77 @@ if (!file.exists(rgns_json)){
 }
 rgns <- read_sf(rgns_json)
 ```
+
+## Upload to BigQuery DB
+
+```{r}
+source(here::here("scripts/db.R"))
+shelf(stringr)
+
+# vars
+bq_tbl_rgns <- "benioff-ocean-initiative.whalesafe_v4.regions"
+update_rgns <- F
+
+
+bq_ds_rgns  <- str_replace(bq_tbl_rgns, "(.*?)\\.(.*?)\\.(.*?)", "\\1.\\2")
+if (!bq_dataset_exists(bq_ds_rgns))
+  bq_dataset_create(bq_ds_rgns)
+
+if (!bq_table_exists(bq_tbl_rgns) | update_rgns){
+  
+  rgns_wkt <- rgns %>% 
+  mutate(
+    wkt = st_as_text(geometry)) %>% 
+    st_drop_geometry()
+  
+  if (!bq_table_exists(bq_tbl_rgns)){
+    bq_table_delete(bq_tbl_rgns)
+  }
+    
+  bq_rgns <- bq_table_create(
+    bq_tbl_rgns,
+    rgns_wkt,
+    friendly_name = "WhaleSafe regions",
+    description   = "Created by:
+        https://github.com/BenioffOceanInitiative/ws-sql/blob/main/load_regions.Rmd",
+    labels = list(category = "spatial"))
+  
+  bq_table_upload(bq_tbl_rgns, rgns_wkt)
+  
+  bq_dataset_query(
+    bq_ds_rgns,
+    glue(
+      "ALTER TABLE {bq_tbl_rgns} ADD COLUMN IF NOT EXISTS geog GEOGRAPHY;
+       UPDATE {bq_tbl_rgns} SET geog = ST_GEOGFROMTEXT(wkt) WHERE TRUE;
+       ALTER TABLE {bq_tbl_rgns} DROP COLUMN IF EXISTS wkt"))
+  # NOTE: UPDATE requires WHERE TRUE; try in console editor to see errors
+  
+  rgns <- bq_table_download(bq_tbl_rgns) %>% 
+    st_as_sf(wkt = "geog", crs = 4326)
+
+}
+
+
+
+
+
+bq_table_upload(bq_rgns, rgns_wkt)
+
+
+bq_mtcars <- bq_table_create(
+  ds,
+  "mtcars",
+  friendly_name = "Motor Trend Car Road Tests",
+  description = "The data was extracted from the 1974 Motor Trend US magazine",
+  labels = list(category = "example")
+)
+bq_mtcars <- bq_table(ds, "mtcars")
+bq_table_exists(bq_mtcars)
+
+bq_table_upload(bq_mtcars, mtcars)
+bq_table_exists(bq_mtcars)
+
+rgns
+```
+
 
