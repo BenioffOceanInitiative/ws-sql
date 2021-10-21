@@ -18,19 +18,19 @@ stopifnot(file.exists(auth_json))
 
 bigrquery::bq_auth(path = auth_json)
 
-con <<- DBI::dbConnect(
-  bigrquery::bigquery(),
-  project = "benioff-ocean-initiative",
-  dataset = "whalesafe_v3",
-  billing = "benioff-ocean-initiative")
-# con
-conn <<- connections::connection_open(
+# database connnection for Connections pane in RStudio
+con <<- connections::connection_open(
   bigrquery::bigquery(),
   project = "benioff-ocean-initiative",
   # dataset = "whalesafe_v3",
   dataset = "whalesafe_v4",
   billing = "benioff-ocean-initiative",
   use_legacy_sql = FALSE)
-# conn
-
 # connection_close(con)
+
+# DBI only connection
+# con <<- dbConnect(
+#   bigrquery::bigquery(),
+#   project = "benioff-ocean-initiative",
+#   dataset = "whalesafe_v4",
+#   billing = "benioff-ocean-initiative")

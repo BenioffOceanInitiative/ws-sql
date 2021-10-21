@@ -11,6 +11,12 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r libraries}
+librarian::shelf(
+  dplyr, glue, here, lwgeom, purrr, sf, stringr, tibble)
+source(here("scripts/db.R"))
+```
+
 
 ## Create Regions
 
@@ -19,9 +25,7 @@ Sources:
 * [Marine Regions · Gulf of Saint Lawrence (IHO Sea Area)](https://www.marineregions.org/gazetteer.php?p=details&id=4290)
 
 ```{r}
-librarian::shelf(
-  dplyr, glue, here, lwgeom, purrr, sf, tibble)
-
+# got these urls by visiting these places on marineregions.org, then Download as JSON
 usa_url <- "https://geo.vliz.be/geoserver/wfs?request=getfeature&service=wfs&version=1.1.0&typename=MarineRegions:eez&outputformat=json&filter=%3CPropertyIsEqualTo%3E%3CPropertyName%3Emrgid%3C%2FPropertyName%3E%3CLiteral%3E8456%3C%2FLiteral%3E%3C%2FPropertyIsEqualTo%3E"
 
 can_gsl_url <- "https://geo.vliz.be/geoserver/wfs?request=getfeature&service=wfs&version=1.1.0&typename=MarineRegions:iho&outputformat=json&filter=%3CPropertyIsEqualTo%3E%3CPropertyName%3Eid%3C%2FPropertyName%3E%3CLiteral%3E24%3C%2FLiteral%3E%3C%2FPropertyIsEqualTo%3E"
@@ -95,29 +99,26 @@ rgns <- read_sf(rgns_json)
 ## Upload to BigQuery DB
 
 ```{r}
-source(here::here("scripts/db.R"))
-shelf(stringr)
-
 # vars
 bq_tbl_rgns <- "benioff-ocean-initiative.whalesafe_v4.regions"
-update_rgns <- F
+update_rgns <- F # set to TRUE if you want to update the regions table
 
-
-bq_ds_rgns  <- str_replace(bq_tbl_rgns, "(.*?)\\.(.*?)\\.(.*?)", "\\1.\\2")
+bq_ds_rgns  <- str_replace(bq_tbl_rgns, "([^.]+)\\.([^.]+)\\.([^.]+)", "\\1.\\2")
 if (!bq_dataset_exists(bq_ds_rgns))
   bq_dataset_create(bq_ds_rgns)
 
 if (!bq_table_exists(bq_tbl_rgns) | update_rgns){
   
   rgns_wkt <- rgns %>% 
-  mutate(
-    wkt = st_as_text(geometry)) %>% 
+    mutate(
+      wkt = st_as_text(geometry)) %>% 
     st_drop_geometry()
   
   if (!bq_table_exists(bq_tbl_rgns)){
     bq_table_delete(bq_tbl_rgns)
   }
     
+  # create the table schema
   bq_rgns <- bq_table_create(
     bq_tbl_rgns,
     rgns_wkt,
@@ -126,8 +127,10 @@ if (!bq_table_exists(bq_tbl_rgns) | update_rgns){
         https://github.com/BenioffOceanInitiative/ws-sql/blob/main/load_regions.Rmd",
     labels = list(category = "spatial"))
   
+  # upload the table contents
   bq_table_upload(bq_tbl_rgns, rgns_wkt)
   
+  # create and update Geography column from well-known text (wkt)
   bq_dataset_query(
     bq_ds_rgns,
     glue(
@@ -141,4 +144,83 @@ rgns_bq <- bq_table_download(bq_tbl_rgns) %>%
   st_as_sf(wkt = "geog", crs = 4326)
 ```
 
+## DBI setup
+
+
+```{r dbi}
+bq_tbl_gfw <- "benioff-ocean-initiative.whalesafe_v4.gfw_daily_spireonly"
+# bq_tbl_gfw <- "benioff-ocean-initiative.whalesafe_v4.gfw_daily_tmp"
+
+bq_ds  <- str_replace(bq_tbl_gfw, "([^.]+)\\.([^.]+)\\.([^.]+)", "\\1.\\2")
+
+sql_glue <- function(sql){
+  readLines(here(sql)) %>% 
+    paste(collapse = "\n") %>% 
+    glue() # cat(sql)
+}
+```
+
+
+## Create tables
+
+Oddly the account `ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com` used for non-interactive access to BigQuery doesn't seem to be able to create tables despite having the following roles in [IAM – IAM & Admin – Benioff Ocean Initi… – Google Cloud Platform](https://console.cloud.google.com/iam-admin/iam?referrer=search&authuser=1&project=benioff-ocean-initiative):
+
+- BigQuery Admin
+- BigQuery Data Editor
+- BigQuery Job User
+- Storage Object Admin
+
+So I ran via Google Console as `benbest@ucsb.edu`.
+
+Wierdly `ben@ecoquants.com`cannot create tables either:
+
+```sql
+CREATE TABLE IF NOT EXISTS `benioff-ocean-initiative.whalesafe_v4.gfw_daily_spireonly` (
+  msgid STRING,
+  ssvid STRING)
+```
+
+```
+# Error running query
+# IAM setPolicy failed for Dataset benioff-ocean-initiative:_scriptfc2436c39b5118cebb6b1551861bc436d98a5e24: One or more users named in the policy do not belong to a permitted customer.
+```
+
+```{r}
+messages_scored_table                     <- "world-fishing-827.pipe_production_v20201001.messages_scored_"
+research_satellite_timing_table           <- "world-fishing-827.gfw_research.pipe_v20201001_satellite_timing"
+static_sunrise_dataset_and_table          <- "world-fishing-827.pipe_static.sunrise"
+static_norad_to_receiver                  <- "world-fishing-827.pipe_static.norad_to_receiver_v20200127"
+satellite_positions_one_second_resolution <- "world-fishing-827.satellite_positions_v20190208.satellite_positions_one_second_resolution_"
+
+sql <- readLines(here("sql_v4/create_gfw-daily.sql")) %>%
+  paste(collapse = "\n") %>%
+  glue()
+
+#dbExecute(con, sql)
+# not working via ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com
+# so run in https://console.cloud.google.com/bigquery as benbest@ucsb.edu
+cat(sql)
+```
+
+
+## Execute per region
+
+```{r exec-rgns}
+date <- Sys.Date() - 7
+
+d_rgns <- dbGetQuery(con, "SELECT region, ST_Extent(geog) AS bbox FROM regions GROUP BY region")
+
+#for (i in 1:nrow(d_rgns)){ # i = 2
+for (i in 2:nrow(d_rgns)){ # i = 2
+  d_rgn    <- d_rgns %>% slice(i)
+  rgn      <- d_rgn$region
+  rgn_bbox <- d_rgn$bbox[[1]]
+  
+  sql_glue("sql_v4/insert_gfw-daily_spire-only_ws-rgn.sql") %>% cat()
+  #dbSendQuery(con, sql_glue("sql_v4/insert_gfw-daily_spire-only_ws-rgn.sql"))
+  # Error in UseMethod("as_bq_table") : 
+  #   no applicable method for 'as_bq_table' applied to an object of class "NULL"
+  dbExecute(con, sql_glue("sql_v4/insert_gfw-daily_spire-only_ws-rgn.sql"))
+}
+```
 

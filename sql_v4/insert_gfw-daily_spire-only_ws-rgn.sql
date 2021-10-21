@@ -24,9 +24,14 @@
 ---------------------------------------------------------------
 
 ---------------------------------------------------------------
+-- Create container for Global Fishing Watch daily data for final insert
+-- see load_regions.Rmd for creation of below with DBI::sqlCreateTable()
+---------------------------------------------------------------
+
+---------------------------------------------------------------
 -- User defined JS helper functions
 ---------------------------------------------------------------
-CREATE TEMP FUNCTION toDAY() AS (DATE('{ date }'));
+CREATE TEMP FUNCTION toDAY() AS (DATE('{date}'));
 
 CREATE TEMP FUNCTION yesterDAY() AS (DATE_SUB(toDAY(), INTERVAL 1 DAY));
 
@@ -61,6 +66,16 @@ CREATE TEMP FUNCTION distance_m(lat1 FLOAT64,
 ---------------------------------------------------------------
 -- Query
 ---------------------------------------------------------------
+DELETE FROM `{bq_tbl_gfw}`
+  WHERE
+    DATE(timestamp) = DATE('{date}') AND
+    ws_region = '{rgn}';
+
+INSERT INTO `{bq_tbl_gfw}` (msgid, ssvid, seg_id, timestamp, lat, lon, speed_knots,heading, course, meters_to_prev, implied_speed_knots,
+  hours, night,  nnet_score,  logistic_score,type,
+  source, receiver_type,receiver, distance_from_sat_km, sat_altitude_km,  sat_lat,  sat_lon,
+  elevation_m,  distance_from_shore_m,  distance_from_port_m, -- regions,
+  ws_region, geog)
 
 WITH
 
@@ -89,7 +104,7 @@ WITH
       distance_from_port_m,
       regions
     FROM
-      `{ messages_scored_table }*`
+      `{messages_scored_table}*`
     WHERE _TABLE_SUFFIX = YYYYMMDD( toDAY() )
     AND source = 'spire'
     AND (receiver is null -- receiver is null is important,
@@ -99,13 +114,18 @@ WITH
         SELECT
           receiver
         FROM
-          `{ research_satellite_timing_table }`
+          `{research_satellite_timing_table}`
         WHERE _partitiontime = timestamp(toDAY())
         AND ABS(dt) > 60
       ))
       -- only valid positions
       AND abs(lat) < 90
       AND abs(lon) < 180
+      -- specific to region
+      AND lon >= {xmin}
+      AND lon <= {xmax}
+      AND lat >= {ymin}
+      AND lat <= {ymax}
   ),
 
   --
@@ -119,7 +139,7 @@ WITH
       lat,
       lon
     FROM
-      `{ messages_scored_table }*`
+      `{messages_scored_table}*`
       WHERE _TABLE_SUFFIX = YYYYMMDD( yesterDAY() )
       AND (receiver is null -- receiver is null is important,
                             -- otherwise null spire positions are ignored
@@ -128,13 +148,18 @@ WITH
           SELECT
             receiver
       FROM
-        `{ research_satellite_timing_table }`
+        `{research_satellite_timing_table}`
       WHERE _partitiontime = timestamp(yesterDAY())
       AND ABS(dt) > 60
     ))
     AND lat < 90
     AND lat > -90
     AND lon < 180
+    -- specific to region
+    AND lon >= {xmin}
+    AND lon <= {xmax}
+    AND lat >= {ymin}
+    AND lat <= {ymax}
   ),
 
   --
@@ -146,7 +171,7 @@ WITH
       day,
       AVG(sunrise) AS sunrise
     FROM
-      `{ static_sunrise_dataset_and_table }`
+      `{static_sunrise_dataset_and_table}`
     GROUP BY
       lat,
       day
@@ -357,7 +382,7 @@ WITH
         norad_id,
         receiver
       FROM
-        `{ static_norad_to_receiver }`) b
+        `{static_norad_to_receiver}`) b
     ON a.receiver = b.receiver
     LEFT JOIN (
       SELECT
@@ -367,7 +392,7 @@ WITH
         timestamp,
         norad_id
       FROM
-        `{ satellite_positions_one_second_resolution }*`
+        `{satellite_positions_one_second_resolution}*`
       WHERE _table_suffix = YYYYMMDD( toDAY() )
       GROUP BY
         norad_id, timestamp) c
@@ -375,13 +400,45 @@ WITH
     AND b.norad_id = c.norad_id
 )
 
---
--- Actually run the entire pipeline
---
+-- Actually run the entire pipeline and store in temp table
+-- https://cloud.google.com/bigquery/docs/reference/standard-sql/dml-syntax#insert_select_statement
 SELECT
   msgid, ssvid, seg_id, timestamp, lat, lon, speed_knots,heading, course, meters_to_prev, implied_speed_knots,
   hours, night,  nnet_score,  logistic_score,type,
   source, receiver_type,receiver, distance_from_sat_km, sat_altitude_km,  sat_lat,  sat_lon,
-  elevation_m,  distance_from_shore_m,  distance_from_port_m, regions
+  elevation_m,  distance_from_shore_m,  distance_from_port_m, -- regions,
+  '{rgn}' AS ws_region,
+  ST_GEOGPOINT(lon, lat) AS geog
 FROM
   distance_from_satellite
+-- LIMIT 10
+;
+
+-- DELETE FROM `benioff-ocean-initiative.whalesafe_v4.gfw_daily_spireonly`
+-- WHERE
+--   DATE(timestamp) = DATE('2021-10-14') AND
+--   ws_region = 'CAN_GoStLawrence';
+DELETE FROM `{bq_tbl_gfw}`
+WHERE
+  DATE(timestamp) = DATE('{date}') AND
+  ws_region = '{rgn}' AND
+  msgid IN (
+    SELECT msgid FROM
+    `{bq_tbl_gfw}` AS pts
+    WHERE
+      DATE(timestamp) = DATE('{date}') AND
+      NOT ST_COVERS(
+        (SELECT geog FROM `benioff-ocean-initiative.whalesafe_v4.regions`
+          WHERE region = '{rgn}'), pts.geog));
+-- DELETE FROM `benioff-ocean-initiative.whalesafe_v4.gfw_daily_spireonly`
+-- WHERE
+--   DATE(timestamp) = DATE('2021-10-14') AND
+--   ws_region = 'CAN_GoStLawrence' AND
+--   msgid IN (
+--     SELECT msgid FROM
+--     `benioff-ocean-initiative.whalesafe_v4.gfw_daily_spireonly` AS pts
+--     WHERE
+--       DATE(timestamp) = DATE('2021-10-14') AND
+--       NOT ST_COVERS(
+--         (SELECT geog FROM `benioff-ocean-initiative.whalesafe_v4.regions`
+--           WHERE region = 'CAN_GoStLawrence'), pts.geog))
