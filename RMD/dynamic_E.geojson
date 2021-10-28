@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "dynamic_E",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "f": 99.9 }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -62.0, 48.58333333 ], [ -61.0, 48.175 ], [ -61.0, 48.0 ], [ -61.05833333, 47.96833333 ], [ -61.125, 48.05 ], [ -62.0, 48.4 ], [ -62.0, 48.58333333 ] ] ] } }
+]
+}

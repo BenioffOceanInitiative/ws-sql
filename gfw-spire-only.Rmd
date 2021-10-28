@@ -1,0 +1,95 @@
+---
+title: "gfw-spire-only"
+author: "Ben Best"
+date: "6/10/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## GFW Spire only
+
+Source: world-fishing-827:pipe_production_v20201001.messages_scored_ 
+* Satellite Timing: world-fishing-827:gfw_research.pipe_v20201001_satellite_timing 
+* Sunrise: world-fishing-827:pipe_static.sunrise 
+* Norad to Receiver: world-fishing-827:pipe_static.norad_to_receiver_v20200127 
+* Satellite positions one second resolution: world-fishing-827:satellite_positions_v20190208.satellite_positions_one_second_resolution_ 
+
+```{r cars}
+source(here::here("scripts/db.R"))
+glue <- glue::glue
+
+# messages_scored_table                     <- "world-fishing-827.pipe_production_v20201001.messages_scored_"
+messages_scored_table                     <- "world-fishing-827.pipe_production_v20201001.messages_scored_"
+research_satellite_timing_table           <- "world-fishing-827.gfw_research.pipe_v20201001_satellite_timing"
+static_sunrise_dataset_and_table          <- "world-fishing-827.pipe_static.sunrise"
+static_norad_to_receiver                  <- "world-fishing-827.pipe_static.norad_to_receiver_v20200127"
+satellite_positions_one_second_resolution <- "world-fishing-827.satellite_positions_v20190208.satellite_positions_one_second_resolution_"
+date <- Sys.Date() - 7
+
+sql <- readLines("gfw/research_daily.sql") %>% 
+  paste(collapse = "\n") %>% 
+  glue() # cat(sql)
+
+(projects <- bq_projects())
+prj <- projects[[1]]
+
+tb <- try(bq_project_query(prj, sql))
+# Running job 'benioff-ocean-initiative.job_WDwrB8T1h5bcmuhuZSTH...
+# Complete
+# Billed: 31.08 GB # before sql: AND source = 'spire'
+# Billed: 31.58 GB # after "
+
+if (!"try-error" %in% class(tb)){
+  bq_table_nrow(tb) # 41,484,745 # before sql: AND source = 'spire'
+  bq_table_nrow(tb) # 27,476,427 # after "
+  df <- try(bq_table_download(tb, n_max = 1000))
+  # View(df)
+  # table(df$source)
+  
+  df$regions[[1]]
+  df %>% 
+    select(-regions) %>% 
+    readr::write_csv(glue("data/gfw-spire-only_{date}.csv"))
+  # Flat files can't store the list column `regions`
+}
+```
+
+```
+Error : Job 'benioff-ocean-initiative.job_y8EvokYB59cNQ-TQt4zf8tVdcFuD.US' failed
+x Access Denied: Table world-fishing-827:gfw_research.pipe_v20201001_satellite_timing: User does not have permission to query table world-fishing-827:gfw_research.pipe_v20201001_satellite_timing. [accessDenied]
+```
+
+```{r}
+tbls <- list(
+  messages_scored_table = glue("
+    SELECT * FROM `{ messages_scored_table }*` WHERE _TABLE_SUFFIX = '20210622'"),
+  research_satellite_timing_table = 
+    glue("SELECT * FROM `{ research_satellite_timing_table }`"),
+   # SELECT * FROM `world-fishing-827.gfw_research.pipe_v20201001_satellite_timing` LIMIT 2
+  # x Access Denied: Table world-fishing-827:gfw_research.pipe_v20201001_satellite_timing: User does not have permission to query table world-fishing-827:gfw_research.pipe_v20201001_satellite_timing. [accessDenied]
+  static_sunrise_dataset_and_table = glue("
+    SELECT * FROM `{ static_sunrise_dataset_and_table }`"), # denied
+  static_norad_to_receiver = glue("
+    SELECT * FROM `{ static_norad_to_receiver }`"),
+  satellite_positions_one_second_resolution = glue("
+    SELECT * FROM `{ satellite_positions_one_second_resolution }*` WHERE _TABLE_SUFFIX = '20210622'"))
+
+for (tbl in names(tbls)){ # tbl = names(tbls)[2]
+  table <- get(tbl)
+  sql   <- glue("{tbls[[tbl]]} LIMIT 2")
+  message(glue("{tbl}: {get(tbl)}\n\n{sql}\n", .trim = F))
+  
+  tb <- try(bq_project_query(prj,sql))
+
+  if (!"try-error" %in% class(tb))
+     try(bq_table_download(tb))
+}
+
+```
+
+

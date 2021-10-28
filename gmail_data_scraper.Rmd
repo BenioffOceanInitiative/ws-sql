@@ -1,0 +1,82 @@
+---
+title: "gmail data scraper"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+````{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+# libraries ---
+if (!require(librarian)){
+  install.packages("librarian")
+  library(librarian)
+}
+shelf(
+  dplyr,
+  glue,
+  gmailr,
+  here,
+  purrr,
+  readr,
+  tidyr)
+```
+
+## Canadian gmail data scraper ----
+reads in and saves email attachments received by autobenioffocean@gmail.com using gmailr 
+
+* [Non-interactive auth](https://cran.r-project.org/web/packages/gargle/vignettes/non-interactive-auth.html)
+
+### set up gmailr
+```{r}
+email <- "autobenioffocean@gmail.com"
+
+credentials_json <- switch(
+  Sys.info()[["effective_user"]],
+  #bbest       = "~/private/sa-autobenioffocean@gmail.com_credentials_2.json",
+  bbest       = "~/private/oauth-autobenioffocean@gmail.com_credentials_3.json",
+  cdobbelaere = "~/TBD.json")
+stopifnot(file.exists(credentials_json))
+
+gm_auth_configure(path = credentials_json)
+gm_auth() # TODO: get working non-interactively
+```
+
+### functions
+```{r}
+# map through all the messages in the latest thread to store any attachments that exist
+get_attachments <- function(msg) {
+  attachments <- gm_attachments(msg)
+  # if attachment exists in message:
+  if (nrow(attachments) > 0) {
+    file <- gm_attachment(id = attachments$id, message_id = msg$id, user_id = "me")
+    # if not test attachment:
+    if (attachments$filename != "mtcars.csv") {
+      gm_save_attachment(file, here(glue("attachments/{attachments$filename}")))
+      base::message(
+        glue("saving '{attachments$filename}' from message id {msg$id}"))
+    }
+  }
+}
+
+# map get_attachments across all threads
+read_gmail <- function(thread_id) {
+  thread <- gm_thread(  
+    id      = thread_id, 
+    user_id = "me")
+  messages <- thread[["messages"]]
+  map(messages, get_attachments)
+}
+```
+
+### read all gmail attachments
+```{r}
+# list of threads
+threads    <- gm_threads()
+threads_df <- threads[[1]][["threads"]] %>% 
+  bind_rows() 
+map_df(threads_df$id, read_gmail)
+```
