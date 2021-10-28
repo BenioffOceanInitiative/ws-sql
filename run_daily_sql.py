@@ -1,6 +1,7 @@
 import pandas as pd
 from google.cloud  import bigquery
 from google.oauth2 import service_account
+from google.api_core.exceptions import BadRequest, retry
 from sqlalchemy    import create_engine
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from datetime import date, datetime, timedelta, timezone
@@ -71,6 +72,11 @@ n_rgns = df_rgns.shape[0]
 
 n_jobs = n_days * n_rgns
 
+@retry.Retry(initial=3, maximum=60*20, multiplier=2, deadline=60*20*5)
+def retry_bq_job(job, job_pfx):
+  msg(f'trying {job_pfx}')
+  return job.result() # wait for result
+
 for i_day in range(n_days): # i_day = 0
   date = date_beg + timedelta(days=i_day)
   # date = date(2021, 1, 1)
@@ -87,13 +93,35 @@ for i_day in range(n_days): # i_day = 0
     sql = sql_fmt(path_gfw_pts_sql)
     # print(sql)
     job = bq_client.query(sql, job_id_prefix = job_pfx)
-    rows = job.result() # wait for result
+    # Will retry flaky_rpc() if it raises transient API errors.
+    result = retry_bq_job(job, job_pfx)
+
+    try:
+      job.result()
+    # except BadRequest:
+    #   for e in job.errors:
+    #     print('ERROR: {}'.format(e['message']))
+    except HttpError, err:
+    # If the error is a rate limit or connection error, wait and
+    # try again.
+    # 403: Forbidden: Both access denied and rate limits.
+    # 408: Timeout
+    # 500: Internal Service Error
+    # 503: Service Unavailable
+    if err.resp.status in [403, 408, 500, 503]:
+      print '%s: Retryable error %s, waiting' % (
+          self.thread_id, err.resp.status,)
+      time.sleep(5)
+    else: raise
     #time.sleep(5)
 
 # n_jobs = 20
 print(f"Last {n_jobs} jobs:\n              begin |                 end | status | name                                 | errors")
 for job in bq_client.list_jobs(max_results=n_jobs):  # API request(s)
     print(f"{job.created:%Y-%m-%d %H:%M:%S} | {job.state} | {job.job_id} | {job.exception()}")
+
+err = help(job.exception)();
+Your table exceeded quota for imports or query appends per table
 
 #   job 207 of 6984: 2017-03-07_USA-GoMex_gfw_pts_ ~ 2021-10-27 17:33:53 PDT
 # Error in py_run_file_impl(file, local, convert) : 
