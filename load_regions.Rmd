@@ -68,7 +68,7 @@ if (!file.exists(rgns_json)){
     filter(ctr_lon < -80.5) %>% 
     arrange(ctr_lon) %>% 
     mutate(
-      region = c("USA_West", "USA_GoMex")) %>% 
+      region = c("USA-West", "USA-GoMex")) %>% 
     select(region, geometry) %>% 
     rbind(
       # East
@@ -78,29 +78,40 @@ if (!file.exists(rgns_json)){
         st_union()  %>% 
         st_as_sf() %>% 
         mutate(
-          region = "USA_East") %>% 
+          region = "USA-East") %>% 
         rename(geometry = x))
 
   # + Canada's Gulf of St Lawrence
   # rgns <- read_sf(rgns_json)
   can_gsl <- read_sf(can_gsl_url) %>%
     mutate(
-      region = "CAN_GoStLawrence") %>% 
+      region = "CAN-GoStLawrence") %>% 
     select(region)
   rgns <- rbind(
-    rgns %>% filter(region!="CAN_GoStLawrence"),
+    rgns %>% filter(region!="CAN-GoStLawrence"),
     can_gsl)
   
   write_sf(rgns, rgns_json, delete_dsn=T)
 }
 rgns <- read_sf(rgns_json)
+
+rgns %>% 
+  mutate(
+    region = recode(
+      region, 
+      `USA_West`  = "USA-West",
+      `USA_GoMex` = "USA-GoMex",
+      `USA_East`  = "USA-East",
+      `CAN_GoStLawrence` = "CAN-GoStLawrence")) %>% 
+  select(rgn = region) %>% 
+  write_sf(rgns_json, delete_dsn=T)
 ```
 
 ## Upload to BigQuery DB
 
 ```{r}
 # vars
-bq_tbl_rgns <- "benioff-ocean-initiative.whalesafe_v4.regions"
+bq_tbl_rgns <- "benioff-ocean-initiative.whalesafe_v4.rgns"
 update_rgns <- F # set to TRUE if you want to update the regions table
 
 bq_ds_rgns  <- str_replace(bq_tbl_rgns, "([^.]+)\\.([^.]+)\\.([^.]+)", "\\1.\\2")
@@ -109,6 +120,7 @@ if (!bq_dataset_exists(bq_ds_rgns))
 
 if (!bq_table_exists(bq_tbl_rgns) | update_rgns){
   
+  rgns <- read_sf(rgns_json)
   rgns_wkt <- rgns %>% 
     mutate(
       wkt = st_as_text(geometry)) %>% 
