@@ -127,12 +127,17 @@ d_coords <- read_csv(coords_csv) %>%
   select(-VERTEX) %>% 
   group_by(ID) %>% 
   st_as_sf(coords = c("LON", "LAT"), crs = 4326) %>% 
-  summarize(sfc_geometry = st_combine(geometry)) %>% 
+  summarize(geometry = st_combine(geometry)) %>% 
   st_cast("POLYGON")
   
 d_plys <- d_info %>% 
   left_join(
-    d_coords, by = "ID")
+    d_coords, by = "ID") %>%
+  st_as_sf() %>% 
+  st_make_valid(geometry) %>% 
+  mutate(
+    area_km2 = st_area(geometry),
+    area_km2 = units::set_units(area_km2, "km^2"))
 
 st_write(d_plys, geo, delete_dsn=T)
 ```
