@@ -1,3 +1,6 @@
+
+SELECT receiver, COUNT(receiver) AS cnt FROM `world-fishing-827.gfw_research.pipe_v20201001_satellite_timing` GROUP BY receiver;
+
 -- delete all data
 DELETE FROM whalesafe_v4.gfw_pts WHERE DATE(timestamp) > DATE('2000-01-01');
 

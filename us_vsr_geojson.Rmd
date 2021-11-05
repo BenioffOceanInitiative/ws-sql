@@ -21,10 +21,6 @@ See [US VSR zone data scraper · Issue #2 · BenioffOceanInitiative/ws-sql](http
 # TODO: 
 # - injecting into BigQuery
 # - setup as a cron job service
-<<<<<<< HEAD
-
-=======
->>>>>>> cefd50349fa55fb32d295723d7b603d37756e015
 # libraries ---
 if (!require(librarian)){
   install.packages("librarian")
@@ -101,8 +97,43 @@ p <- st_read(geo)
 p %>% 
   st_drop_geometry() %>% 
   datatable()
+```
 
+
+```{r}
 leaflet(p) %>%
   addProviderTiles(providers$Esri.OceanBasemap) %>% 
   addPolygons() 
 ```
+
+
+# Historical DMA (Dynamic Managed Area)
+
+```{r}
+info_csv   <- here("data/usa_dyn-mgt_historical/DMAinfo.csv")
+coords_csv <- here("data/usa_dyn-mgt_historical/DMAcoords.csv")
+geo        <- here("data/usa_nefsc_dyn-mgt-areas_historical.geojson")
+
+d_info   <- read_csv(info_csv) %>% 
+  mutate(
+    STARTDATE = as.POSIXct(STARTDATE, tz="America/New_York"),
+    EXPDATE   = as.POSIXct(EXPDATE  , tz="America/New_York")) %>% 
+  filter(
+    as.Date(STARTDATE) > as.Date("2017-01-01")) # beg of Global Fishing Watch ship data
+nrow(d_info)
+range(d_info$STARTDATE)
+
+d_coords <- read_csv(coords_csv) %>% 
+  select(-VERTEX) %>% 
+  group_by(ID) %>% 
+  st_as_sf(coords = c("LON", "LAT"), crs = 4326) %>% 
+  summarize(sfc_geometry = st_combine(geometry)) %>% 
+  st_cast("POLYGON")
+  
+d_plys <- d_info %>% 
+  left_join(
+    d_coords, by = "ID")
+
+st_write(d_plys, geo, delete_dsn=T)
+```
+
