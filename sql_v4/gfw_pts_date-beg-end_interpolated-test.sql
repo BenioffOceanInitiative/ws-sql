@@ -53,96 +53,97 @@
 -- 
 ---------------------------------------------------------------
 
----------------------------------------------------------------
--- Create container for Global Fishing Watch daily data for final insert
--- see load_regions.Rmd for creation of below with DBI::sqlCreateTable()
----------------------------------------------------------------
--- DROP TABLE IF EXISTS `benioff-ocean-initiative.whalesafe_v4.gfw_pts`;
-CREATE TABLE IF NOT EXISTS `benioff-ocean-initiative.whalesafe_v4.gfw_pts` (
-  msgid STRING,
-  ssvid STRING,
-  seg_id STRING,
-  `timestamp` TIMESTAMP,
-  lat FLOAT64,
-  lon FLOAT64,
-  speed_knots FLOAT64,
-  heading FLOAT64,
-  course FLOAT64,
-  meters_to_prev FLOAT64,
-  implied_speed_knots FLOAT64,
-  hours FLOAT64,
-  night BOOL,
-  nnet_score FLOAT64,
-  logistic_score FLOAT64,
-  type STRING,
-  source STRING,
-  receiver_type STRING,
-  receiver STRING,
-  distance_from_sat_km FLOAT64,
-  sat_altitude_km FLOAT64,
-  sat_lat FLOAT64,
-  sat_lon FLOAT64,
-  elevation_m FLOAT64,
-  distance_from_shore_m FLOAT64,
-  distance_from_port_m FLOAT64,
-  -- regions ARRAY<STRING>,
-  rgn STRING
-)
-PARTITION BY DATE(timestamp)
-CLUSTER BY ssvid, rgn
-OPTIONS (
-    description              = "partitioned by day, clustered by (ssvid, rgn)",
-    require_partition_filter = TRUE);
+-- ---------------------------------------------------------------
+-- -- Create container for Global Fishing Watch daily data for final insert
+-- -- see load_regions.Rmd for creation of below with DBI::sqlCreateTable()
+-- ---------------------------------------------------------------
+-- -- DROP TABLE IF EXISTS `benioff-ocean-initiative.whalesafe_v4.gfw_pts`;
+-- CREATE TABLE IF NOT EXISTS `benioff-ocean-initiative.whalesafe_v4.gfw_pts` (
+--   msgid STRING,
+--   ssvid STRING,
+--   seg_id STRING,
+--   `timestamp` TIMESTAMP,
+--   lat FLOAT64,
+--   lon FLOAT64,
+--   speed_knots FLOAT64,
+--   heading FLOAT64,
+--   course FLOAT64,
+--   meters_to_prev FLOAT64,
+--   implied_speed_knots FLOAT64,
+--   hours FLOAT64,
+--   night BOOL,
+--   nnet_score FLOAT64,
+--   logistic_score FLOAT64,
+--   type STRING,
+--   source STRING,
+--   receiver_type STRING,
+--   receiver STRING,
+--   distance_from_sat_km FLOAT64,
+--   sat_altitude_km FLOAT64,
+--   sat_lat FLOAT64,
+--   sat_lon FLOAT64,
+--   elevation_m FLOAT64,
+--   distance_from_shore_m FLOAT64,
+--   distance_from_port_m FLOAT64,
+--   -- regions ARRAY<STRING>,
+--   rgn STRING
+-- )
+-- PARTITION BY DATE(timestamp)
+-- CLUSTER BY ssvid, rgn
+-- OPTIONS (
+--     description              = "partitioned by day, clustered by (ssvid, rgn)",
+--     require_partition_filter = TRUE);
 
--- add geography points
-ALTER TABLE `benioff-ocean-initiative.whalesafe_v4.gfw_pts` ADD COLUMN IF NOT EXISTS geog GEOGRAPHY;
+-- -- add geography points
+-- ALTER TABLE `benioff-ocean-initiative.whalesafe_v4.gfw_pts` ADD COLUMN IF NOT EXISTS geog GEOGRAPHY;
 
--- set description
-ALTER TABLE `benioff-ocean-initiative.whalesafe_v4.gfw_pts`
-  ALTER COLUMN `msgid` SET OPTIONS (description = "GFW: unique message id. every row in the the table has a unique msg_id"),
-  ALTER COLUMN `ssvid` SET OPTIONS (description = "GFW: source specific vessel id. This is the transponder id, and for AIS this is the MMSI"),
-  ALTER COLUMN `seg_id` SET OPTIONS (description = "GFW: unique segment id. This table has one row per segment id per day"),
-  ALTER COLUMN `timestamp` SET OPTIONS (description = "GFW: message timestamp"),
-  ALTER COLUMN `lat` SET OPTIONS (description = "GFW: latitude"),
-  ALTER COLUMN `lon` SET OPTIONS (description = "GFW: longitude"),
-  ALTER COLUMN `speed_knots` SET OPTIONS (description = "GFW: speed in knots"),
-  ALTER COLUMN `heading` SET OPTIONS (description = "GFW: vessel heading in degrees"),
-  ALTER COLUMN `course` SET OPTIONS (description = "GFW: course over ground in degrees, where north is 0 degrees"),
-  ALTER COLUMN `meters_to_prev` SET OPTIONS (description = "GFW: "),
-  ALTER COLUMN `implied_speed_knots` SET OPTIONS (description = "GFW: "),
-  ALTER COLUMN `hours` SET OPTIONS (description = "GFW: "),
-  ALTER COLUMN `night` SET OPTIONS (description = "GFW: "),
-  ALTER COLUMN `nnet_score` SET OPTIONS (description = "GFW: The score assigned by the neural network."),
-  ALTER COLUMN `logistic_score` SET OPTIONS (description = "GFW: The score assigned by the logistic regression modeld."),
-  ALTER COLUMN `type` SET OPTIONS (description = "GFW: Message type. For AIS this is the message id (eg. 1, 5, 18, 24 etc)"),
-  ALTER COLUMN `source` SET OPTIONS (description = "GFW: Source of this messages. Generally this is the provider"),
-  ALTER COLUMN `receiver_type` SET OPTIONS (description = "GFW: terrestrial or satellite obtained from the raw ais messages."),
-  ALTER COLUMN `receiver` SET OPTIONS (description = "GFW: The receiver obtained from the source ais messages."),
-  ALTER COLUMN `distance_from_sat_km` SET OPTIONS (description = "GFW: "),
-  ALTER COLUMN `sat_altitude_km` SET OPTIONS (description = "GFW: "),
-  ALTER COLUMN `sat_lat` SET OPTIONS (description = "GFW: "),
-  ALTER COLUMN `sat_lon` SET OPTIONS (description = "GFW: "),
-  ALTER COLUMN `elevation_m` SET OPTIONS (description = "GFW: "),
-  ALTER COLUMN `distance_from_shore_m` SET OPTIONS (description = "GFW: "),
-  ALTER COLUMN `distance_from_port_m` SET OPTIONS (description = "GFW: "),
-  ALTER COLUMN `rgn` SET OPTIONS (description = "WS: WhaleSafe regions. See https://github.com/BenioffOceanInitiative/ws-sql/issues/7"),
-  ALTER COLUMN `geog` SET OPTIONS (description = "WS: geography of POINT(lon, lat)");
--- TODO: GFW vessel_id	STRING Unique vessel id. Each vessel_id can be associated with many seg_ids, and only one ssvid
+-- -- set description
+-- ALTER TABLE `benioff-ocean-initiative.whalesafe_v4.gfw_pts`
+--   ALTER COLUMN `msgid` SET OPTIONS (description = "GFW: unique message id. every row in the the table has a unique msg_id"),
+--   ALTER COLUMN `ssvid` SET OPTIONS (description = "GFW: source specific vessel id. This is the transponder id, and for AIS this is the MMSI"),
+--   ALTER COLUMN `seg_id` SET OPTIONS (description = "GFW: unique segment id. This table has one row per segment id per day"),
+--   ALTER COLUMN `timestamp` SET OPTIONS (description = "GFW: message timestamp"),
+--   ALTER COLUMN `lat` SET OPTIONS (description = "GFW: latitude"),
+--   ALTER COLUMN `lon` SET OPTIONS (description = "GFW: longitude"),
+--   ALTER COLUMN `speed_knots` SET OPTIONS (description = "GFW: speed in knots"),
+--   ALTER COLUMN `heading` SET OPTIONS (description = "GFW: vessel heading in degrees"),
+--   ALTER COLUMN `course` SET OPTIONS (description = "GFW: course over ground in degrees, where north is 0 degrees"),
+--   ALTER COLUMN `meters_to_prev` SET OPTIONS (description = "GFW: "),
+--   ALTER COLUMN `implied_speed_knots` SET OPTIONS (description = "GFW: "),
+--   ALTER COLUMN `hours` SET OPTIONS (description = "GFW: "),
+--   ALTER COLUMN `night` SET OPTIONS (description = "GFW: "),
+--   ALTER COLUMN `nnet_score` SET OPTIONS (description = "GFW: The score assigned by the neural network."),
+--   ALTER COLUMN `logistic_score` SET OPTIONS (description = "GFW: The score assigned by the logistic regression modeld."),
+--   ALTER COLUMN `type` SET OPTIONS (description = "GFW: Message type. For AIS this is the message id (eg. 1, 5, 18, 24 etc)"),
+--   ALTER COLUMN `source` SET OPTIONS (description = "GFW: Source of this messages. Generally this is the provider"),
+--   ALTER COLUMN `receiver_type` SET OPTIONS (description = "GFW: terrestrial or satellite obtained from the raw ais messages."),
+--   ALTER COLUMN `receiver` SET OPTIONS (description = "GFW: The receiver obtained from the source ais messages."),
+--   ALTER COLUMN `distance_from_sat_km` SET OPTIONS (description = "GFW: "),
+--   ALTER COLUMN `sat_altitude_km` SET OPTIONS (description = "GFW: "),
+--   ALTER COLUMN `sat_lat` SET OPTIONS (description = "GFW: "),
+--   ALTER COLUMN `sat_lon` SET OPTIONS (description = "GFW: "),
+--   ALTER COLUMN `elevation_m` SET OPTIONS (description = "GFW: "),
+--   ALTER COLUMN `distance_from_shore_m` SET OPTIONS (description = "GFW: "),
+--   ALTER COLUMN `distance_from_port_m` SET OPTIONS (description = "GFW: "),
+--   ALTER COLUMN `rgn` SET OPTIONS (description = "WS: WhaleSafe regions. See https://github.com/BenioffOceanInitiative/ws-sql/issues/7"),
+--   ALTER COLUMN `geog` SET OPTIONS (description = "WS: geography of POINT(lon, lat)");
+-- -- TODO: GFW vessel_id	STRING Unique vessel id. Each vessel_id can be associated with many seg_ids, and only one ssvid
 
 ---------------------------------------------------------------
 -- User defined JS helper functions
 ---------------------------------------------------------------
-CREATE TEMP FUNCTION toDAY() AS (DATE('2017-03-07'));
-
-CREATE TEMP FUNCTION yesterDAY() AS (DATE_SUB(toDAY(), INTERVAL 1 DAY));
-
-CREATE TEMP FUNCTION tomorrow() AS (DATE_ADD(toDAY(), INTERVAL 1 DAY));
+CREATE TEMP FUNCTION begDAY() AS (DATE('2017-01-01'));
+CREATE TEMP FUNCTION endDAY() AS (DATE('2017-05-12'));
+CREATE TEMP FUNCTION priorDAY() AS (DATE_SUB(begDAY(), INTERVAL 1 DAY));
+-- SELECT (DATE_SUB(DATE('2021-01-01'), INTERVAL 1 DAY)) AS priorDAY ;
+-- SELECT priorDAY(); -- 2016-12-31
 
 -- Define some utility functions to make thinks more readable
 CREATE TEMP FUNCTION YYYYMMDD(d DATE) AS (
   -- Format a date as YYYYMMDD
   -- e.g. DATE('2018-01-01') => '20180101'
   FORMAT_DATE('%Y%m%d', d) );
+-- SELECT YYYYMMDD(priorDAY()); -- 20161231
 
 CREATE TEMP FUNCTION distance_m(lat1 FLOAT64,
   lon1 FLOAT64,
@@ -164,20 +165,20 @@ CREATE TEMP FUNCTION distance_m(lat1 FLOAT64,
       timestamp2,
       microsecond) / 3600000000.0) );
 
----------------------------------------------------------------
--- Query
----------------------------------------------------------------
-DELETE FROM `benioff-ocean-initiative.whalesafe_v4.gfw_pts`
-  WHERE
-    DATE(timestamp) >= DATE('2017-03-07') AND
-    DATE(timestamp) <= DATE('2021-10-26') AND
-    rgn = 'CAN-GoStLawrence';
+-- ---------------------------------------------------------------
+-- -- Query
+-- ---------------------------------------------------------------
+-- DELETE FROM `benioff-ocean-initiative.whalesafe_v4.gfw_pts`
+--   WHERE
+--     DATE(timestamp) >= DATE('2017-01-01') AND
+--     DATE(timestamp) <= DATE('2017-05-12') AND
+--     rgn = 'CAN-GoStLawrence';
 
-INSERT INTO `benioff-ocean-initiative.whalesafe_v4.gfw_pts` (msgid, ssvid, seg_id, timestamp, lat, lon, speed_knots,heading, course, meters_to_prev, implied_speed_knots,
-  hours, night,  nnet_score,  logistic_score,type,
-  source, receiver_type,receiver, distance_from_sat_km, sat_altitude_km,  sat_lat,  sat_lon,
-  elevation_m,  distance_from_shore_m,  distance_from_port_m, -- regions,
-  rgn, geog)
+-- INSERT INTO `benioff-ocean-initiative.whalesafe_v4.gfw_pts` (msgid, ssvid, seg_id, timestamp, lat, lon, speed_knots,heading, course, meters_to_prev, implied_speed_knots,
+--   hours, night,  nnet_score,  logistic_score,type,
+--   source, receiver_type,receiver, distance_from_sat_km, sat_altitude_km,  sat_lat,  sat_lon,
+--   elevation_m,  distance_from_shore_m,  distance_from_port_m, -- regions,
+--   rgn, geog)
 
 WITH
 
@@ -207,7 +208,7 @@ WITH
       -- regions
     FROM
       `world-fishing-827.pipe_production_v20201001.messages_scored_*`
-    WHERE _TABLE_SUFFIX = YYYYMMDD( toDAY() )
+    WHERE _TABLE_SUFFIX = YYYYMMDD( begDAY() )
     AND source = 'spire'
     AND (receiver is null -- receiver is null is important,
                           -- otherwise null spire positions are ignored
@@ -217,17 +218,19 @@ WITH
           receiver
         FROM
           `world-fishing-827.gfw_research.pipe_v20201001_satellite_timing`
-        WHERE _partitiontime = timestamp(toDAY())
-        AND ABS(dt) > 60
+        WHERE 
+            DATE(_partitiontime) >= DATE('2017-01-01') AND
+            DATE(_partitiontime) <= DATE('2017-05-12') AND
+            ABS(dt) > 60
       ))
       -- only valid positions
       AND abs(lat) < 90
       AND abs(lon) < 180
       -- specific to rgn
-      AND lon >= -74.86481
-      AND lon <= -54.70345
-      AND lat >= 44.95849999999997
-      AND lat <= 52.22242000000002
+      AND lon >= -74.86481000000002
+      AND lon <= -54.70344999999999
+      AND lat >= 44.958499999999965
+      AND lat <= 52.22242000000003
   ),
 
   --
@@ -242,27 +245,34 @@ WITH
       lon
     FROM
       `world-fishing-827.pipe_production_v20201001.messages_scored_*`
-      WHERE _TABLE_SUFFIX = YYYYMMDD( yesterDAY() )
-      AND (receiver is null -- receiver is null is important,
+      WHERE 
+      _TABLE_SUFFIX = YYYYMMDD( priorDAY() ) AND 
+      -- SELECT COUNT(*) AS cnt FROM positions_yesterday
+      -- cnt: 12926551
+      (receiver is null -- receiver is null is important,
                             -- otherwise null spire positions are ignored
         -- OR receiver in ('rORBCOMM000','rORBCOMM999') -- exclude ORBCOM
-        OR receiver not in (
-          SELECT
-            receiver
-      FROM
-        `world-fishing-827.gfw_research.pipe_v20201001_satellite_timing`
-      WHERE _partitiontime = timestamp(yesterDAY())
-      AND ABS(dt) > 60
-    ))
-    AND lat < 90
-    AND lat > -90
-    AND lon < 180
-    -- specific to rgn
-    AND lon >= -74.86481
-    AND lon <= -54.70345
-    AND lat >= 44.95849999999997
-    AND lat <= 52.22242000000002
-  ),
+      OR receiver not in (
+        SELECT
+          receiver
+        FROM
+          `world-fishing-827.gfw_research.pipe_v20201001_satellite_timing`
+        WHERE _partitiontime = timestamp(priorDAY())
+        AND ABS(dt) > 60))
+      AND lat < 90
+      AND lat > -90
+      AND lon < 180
+      -- specific to rgn
+      AND lon >= -74.86481000000002
+      AND lon <= -54.70344999999999
+      AND lat >= 44.958499999999965
+      AND lat <= 52.22242000000003)
+
+  SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp, -- 2016-12-31 00:00:00 UTC 2016-12-31 23:59:59 UTC
+    MIN(lon) AS min_lon, MAX(lon) AS max_lon, -- -74.78725 -54.70534
+    MIN(lat) AS min_lat, MAX(lat) AS max_lat, --  44.95962  52.22193
+    COUNT(*) AS cnt FROM positions_yesterday; -- 25323
+  -- cnt: 25323
 
   --
   -- Loads sunrise lookup table
@@ -300,8 +310,9 @@ WITH
         raw_message )
     WHERE row_number = 1
   ),
-
-
+  -- SELECT COUNT(*) AS cnt FROM all_positions;
+  -- cnt: 11016
+  
   -- Combines all positions and timestamps from yesterday and today
   -- no need to dedup yesterday because we will throw them away later
   -- NB: we drop a bunch of fields that we don't need here so that we don't have to also
@@ -314,14 +325,17 @@ WITH
       lat,
       lon
     FROM
-      dedup_message UNION ALL
+      dedup_message
+    UNION ALL
     SELECT
       *
     FROM
       positions_yesterday
   ),
+  -- SELECT COUNT(*) AS cnt FROM all_positions;
+  -- -- cnt: 36339
 
-  --
+  --  
   -- Thin messages to one per minute per seg_id
   --
   thinned_positions AS (
@@ -344,7 +358,9 @@ WITH
         FROM
           all_positions ) )
     WHERE row_number = 1
-  ),
+  ),  
+  --  SELECT COUNT(*) AS cnt FROM thinned_positions;
+  -- cnt: 32207
 
   --
   -- Gets previous position and timestamp
@@ -358,6 +374,8 @@ WITH
     FROM
       thinned_positions
   ),
+  -- SELECT COUNT(*) AS cnt FROM prev_position;
+  -- cnt: 32207
 
   --
   -- Computes distance and time to previous position, and derive implied speed
@@ -376,6 +394,8 @@ WITH
       prev_position
     WHERE DATE(timestamp) = DATE_SUB(DATE(timestamp), INTERVAL 1 DAY)
   ),
+  -- SELECT COUNT(*) AS cnt FROM prev_time_dist;
+  -- cnt: 0
 
   hours_and_distance AS (
     SELECT
@@ -394,7 +414,9 @@ WITH
         hours ) * 0.00053995 implied_speed_knots
     FROM
       hours_and_distance
-  ),
+  )
+  -- SELECT COUNT(*) AS cnt FROM implied_speed;
+  -- cnt: 0
 
   --
   -- Computes day of year and local time
@@ -414,6 +436,8 @@ WITH
     FROM
       implied_speed
   ),
+  -- SELECT COUNT(*) AS cnt FROM day_and_time;
+  -- cnt: 0
 
   --
   -- Determines local sunrise and sunset for each position message
@@ -431,95 +455,6 @@ WITH
     ON
       message.day_of_year = sunrise_lookup.day
       AND message.lat_bin = sunrise_lookup.lat
-  ),
-
-  --
-  -- Adds a boolean to indicate whether is it night for each position
-  --
-  local_night AS (
-    SELECT
-      *,
-      IF(local_time > sunset
-        OR local_time < sunrise, TRUE, FALSE) night
-    FROM
-      local_sunrise
-  ),
-
-  --
-  -- Now we need to add back in the other message fields that we left behind when we combined positions
-  -- from yesterday, and add in receiver from the raw messages
-  --
-  combined_message AS (
-    SELECT
-      dedup_message.*,
-      local_night.meters_to_prev,
-      local_night.implied_speed_knots,
-      local_night.hours,
-      local_night.night
-    FROM
-      local_night
-    LEFT JOIN
-      dedup_message USING (msgid,
-        lat,
-        lon)
-  ),
-
-  --
-  -- Calculates the distance to the satellite that received the message
-  distance_from_satellite as (
-    SELECT
-      a.timestamp timestamp,
-      a.lat lat,
-      a.lon lon,
-      a.receiver receiver,
-      * except(lat,lon, timestamp, norad_id, receiver, altitude),
-      distance_m(a.lat, a.lon, c.lat, c.lon)/1000 distance_from_sat_km,
-      altitude/1000 as sat_altitude_km,
-      c.lat as sat_lat,
-      c.lon as sat_lon
-    FROM
-      combined_message a
-    LEFT JOIN (
-      SELECT
-        norad_id,
-        receiver
-      FROM
-        `world-fishing-827.pipe_static.norad_to_receiver_v20200127`) b
-    ON a.receiver = b.receiver
-    LEFT JOIN (
-      SELECT
-        avg(lat) lat,
-        avg(lon) lon,
-        avg(altitude) altitude,
-        timestamp,
-        norad_id
-      FROM
-        `world-fishing-827.satellite_positions_v20190208.satellite_positions_one_second_resolution_*`
-      WHERE _table_suffix = YYYYMMDD( toDAY() )
-      GROUP BY
-        norad_id, timestamp) c
-    ON a.timestamp = c.timestamp
-    AND b.norad_id = c.norad_id
-)
-
--- Actually run the entire pipeline and store in temp table
--- https://cloud.google.com/bigquery/docs/reference/standard-sql/dml-syntax#insert_select_statement
-SELECT
-  msgid, ssvid, seg_id, timestamp, lat, lon, speed_knots,heading, course, meters_to_prev, implied_speed_knots,
-  hours, night,  nnet_score,  logistic_score,type,
-  source, receiver_type,receiver, distance_from_sat_km, sat_altitude_km,  sat_lat,  sat_lon,
-  elevation_m,  distance_from_shore_m,  distance_from_port_m, -- regions,
-  'CAN-GoStLawrence' AS rgn,
-  ST_GEOGPOINT(lon, lat) AS geog
-FROM
-  distance_from_satellite
-WHERE
-  DATE(timestamp) >= DATE('2017-03-07') AND
-  DATE(timestamp) <= DATE('2021-10-26') AND
-  -- NEW: limit to points falling inside given rgn
-  ST_COVERS(
-    (SELECT geog 
-      FROM `benioff-ocean-initiative.whalesafe_v4.rgns`
-      WHERE rgn = 'CAN-GoStLawrence'), 
-    ST_GEOGPOINT(lon, lat))
-;
+  )
+  -- SELECT COUNT(*) AS cnt FROM local_sunrise;
+  -- cnt: 

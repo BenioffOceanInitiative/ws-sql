@@ -14,8 +14,8 @@ import os
 # bigquery connection
 project_id       = 'benioff-ocean-initiative'
 dataset          = 'whalesafe_v4'
-credentials_json = '/home/admin/Benioff Ocean Initiative-454f666d1896.json'
-# credentials_json = '/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/gfw/Benioff Ocean Initiative-454f666d1896.json'
+#credentials_json = '/home/admin/Benioff Ocean Initiative-454f666d1896.json'
+credentials_json = '/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/gfw/Benioff Ocean Initiative-454f666d1896.json'
 # lgnd-website-service-account: https://console.cloud.google.com/iam-admin/serviceaccounts/details/114569616080626900590;edit=true?previousPage=%2Fapis%2Fcredentials%3Fproject%3Dbenioff-ocean-initiative%26authuser%3D1&authuser=1&project=benioff-ocean-initiative
 credentials      = service_account.Credentials.from_service_account_file(credentials_json)
 bq_client        = bigquery.Client(credentials=credentials, project=project_id)
@@ -44,24 +44,25 @@ def msg(txt):
 def sql_fmt(f):
   return(open(f, "r").read().format(**dict(globals(), **locals())))
 
-date_beg = date(2017,  3,  7)
-date_end = date(2021, 10, 26)
+date_beg = date(2017,  1,  1)
+#date_end = date(2021, 10, 26)
+date_end = date(2017, 5, 12)
 delta = date_end - date_beg
-n_days = delta.days + 1
+n_days = delta.days + 1 # 132 days
 
 df_rgns = bq_client.query(f"SELECT rgn, ST_Extent(geog) AS bbox FROM {dataset}.rgns GROUP BY rgn ORDER BY rgn").to_dataframe()
 n_rgns = df_rgns.shape[0]
-n_jobs = n_days * n_rgns
+#n_jobs = n_days * n_rgns
+
+msg(f'Iterating over {n_rgns} regions for a span of {n_days} days.')
 
 for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.loc[i_rgn,]
   rgn = row['rgn']
   xmin, xmax, ymin, ymax = [row['bbox'][key] for key in ['xmin', 'xmax', 'ymin', 'ymax']]
 
-  job_pfx = f'{date}_{rgn}_gfw_pts_'
+  job_pfx = f'{rgn}_gfw_pts_'
   msg(f'rgn {i_rgn} of {n_rgns}: {job_pfx}')
   sql = sql_fmt(path_gfw_pts_sql)
   print(sql)
   job = bq_client.query(sql, job_id_prefix = job_pfx)
   result = job.result()
-
-

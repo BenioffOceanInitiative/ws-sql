@@ -1,4 +1,9 @@
 
+-- ALTER TABLE `whalesafe_v4.gfw_pts` RENAME TO gfw_pts_daily;
+SELECT min(timestamp) AS date_min, max(timestamp) AS date_max from `whalesafe_v4.gfw_pts_daily` WHERE DATE(timestamp) > DATE('2000-01-01');
+-- 2017-01-01 00:00:00 UTC | 2017-05-12 23:59:57 UTC
+
+-- reciever 
 SELECT receiver, COUNT(receiver) AS cnt FROM `world-fishing-827.gfw_research.pipe_v20201001_satellite_timing` GROUP BY receiver;
 
 -- delete all data

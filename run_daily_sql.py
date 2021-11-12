@@ -115,7 +115,7 @@ for i_day in range(n_days): # i_day = 0
     else: raise
     #time.sleep(5)
 
-# n_jobs = 20
+# n_jobs = 10
 print(f"Last {n_jobs} jobs:\n              begin |                 end | status | name                                 | errors")
 for job in bq_client.list_jobs(max_results=n_jobs):  # API request(s)
     print(f"{job.created:%Y-%m-%d %H:%M:%S} | {job.state} | {job.job_id} | {job.exception()}")
