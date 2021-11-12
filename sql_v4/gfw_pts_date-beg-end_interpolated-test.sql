@@ -266,12 +266,12 @@ WITH
       AND lon >= -74.86481000000002
       AND lon <= -54.70344999999999
       AND lat >= 44.958499999999965
-      AND lat <= 52.22242000000003)
+      AND lat <= 52.22242000000003),
 
-  SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp, -- 2016-12-31 00:00:00 UTC 2016-12-31 23:59:59 UTC
-    MIN(lon) AS min_lon, MAX(lon) AS max_lon, -- -74.78725 -54.70534
-    MIN(lat) AS min_lat, MAX(lat) AS max_lat, --  44.95962  52.22193
-    COUNT(*) AS cnt FROM positions_yesterday; -- 25323
+  -- SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp, -- 2016-12-31 00:00:00 UTC 2016-12-31 23:59:59 UTC
+  --   MIN(lon) AS min_lon, MAX(lon) AS max_lon, -- -74.78725 -54.70534
+  --   MIN(lat) AS min_lat, MAX(lat) AS max_lat, --  44.95962  52.22193
+  --   COUNT(*) AS cnt FROM positions_yesterday; -- 25323
   -- cnt: 25323
 
   --
