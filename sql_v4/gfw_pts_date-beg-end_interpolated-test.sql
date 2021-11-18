@@ -208,7 +208,10 @@ WITH
       -- regions
     FROM
       `world-fishing-827.pipe_production_v20201001.messages_scored_*`
-    WHERE _TABLE_SUFFIX = YYYYMMDD( begDAY() )
+    -- WHERE _TABLE_SUFFIX = YYYYMMDD( begDAY() )
+    WHERE 
+      _TABLE_SUFFIX >= YYYYMMDD( begDAY() ) AND
+      _TABLE_SUFFIX <= YYYYMMDD( endDAY() )
     AND source = 'spire'
     AND (receiver is null -- receiver is null is important,
                           -- otherwise null spire positions are ignored
@@ -232,6 +235,17 @@ WITH
       AND lat >= 44.958499999999965
       AND lat <= 52.22242000000003
   ),
+  -- SELECT COUNT(*) AS cnt FROM raw_message;
+  -- cnt: 11,016 BEFORE  AND _TABLE_SUFFIX <= YYYYMMDD( endDAY() )
+  -- SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp, -- 2017-01-01 00:00:00 UTC 2017-01-01 23:59:45 UTC
+  --   MIN(lon) AS min_lon, MAX(lon) AS max_lon, -- -74.7871883333 -54.7035166667
+  --   MIN(lat) AS min_lat, MAX(lat) AS max_lat, -- 44.962385 51.497525
+  --   COUNT(*) AS cnt FROM raw_message; -- 11016
+  -- cnt: 1,079,500 AFTER  AND _TABLE_SUFFIX <= YYYYMMDD( endDAY() )
+  -- SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp, -- 2017-01-01 00:00:00 UTC 2017-05-12 23:59:56 UTC
+  --   MIN(lon) AS min_lon, MAX(lon) AS max_lon, -- -74.8587716667 -54.7035166667
+  --   MIN(lat) AS min_lat, MAX(lat) AS max_lat, -- 44.9585233333 52.2117183333
+  --   COUNT(*) AS cnt FROM raw_message; -- 1079500
 
   --
   -- Gets positions from yesterday
@@ -310,7 +324,7 @@ WITH
         raw_message )
     WHERE row_number = 1
   ),
-  -- SELECT COUNT(*) AS cnt FROM all_positions;
+  -- SELECT COUNT(*) AS cnt FROM dedup_message;
   -- cnt: 11016
   
   -- Combines all positions and timestamps from yesterday and today
@@ -358,7 +372,7 @@ WITH
         FROM
           all_positions ) )
     WHERE row_number = 1
-  ),  
+  ), 
   --  SELECT COUNT(*) AS cnt FROM thinned_positions;
   -- cnt: 32207
 
@@ -376,6 +390,8 @@ WITH
   ),
   -- SELECT COUNT(*) AS cnt FROM prev_position;
   -- cnt: 32207
+  -- SELECT * FROM prev_position;
+  -- cnt: 1,074,719
 
   --
   -- Computes distance and time to previous position, and derive implied speed
@@ -392,10 +408,20 @@ WITH
           prev_timestamp), 0) hours
     FROM
       prev_position
-    WHERE DATE(timestamp) = DATE_SUB(DATE(timestamp), INTERVAL 1 DAY)
+    WHERE DATE(timestamp) >= begDAY() -- strip off previous days outside desired range
   ),
   -- SELECT COUNT(*) AS cnt FROM prev_time_dist;
   -- cnt: 0
+  -- SELECT COUNT(*) AS cnt FROM prev_time_dist;
+  -- cnt: 21,498
+  -- SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp, -- 2016-12-31 00:00:00 UTC 2016-12-31 23:59:59 UTC
+  --   MIN(lon) AS min_lon, MAX(lon) AS max_lon, -- -74.7872466667 -54.7053466667
+  --   MIN(lat) AS min_lat, MAX(lat) AS max_lat, -- 44.95962 52.219185
+  --   COUNT(*) AS cnt FROM prev_time_dist; -- 21498
+  -- SELECT MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp, -- 2017-01-01 00:00:00 UTC 2017-05-12 23:59:56 UTC
+  --   MIN(lon) AS min_lon, MAX(lon) AS max_lon, -- -74.8587716667 -54.7035166667
+  --   MIN(lat) AS min_lat, MAX(lat) AS max_lat, -- 44.9585233333 52.2117183333
+  --   COUNT(*) AS cnt FROM prev_time_dist; -- 1,053,221
 
   hours_and_distance AS (
     SELECT
@@ -417,6 +443,8 @@ WITH
   )
   -- SELECT COUNT(*) AS cnt FROM implied_speed;
   -- cnt: 0
+  -- SELECT COUNT(*) AS cnt FROM implied_speed;
+  -- cnt: 1,053,221
 
   --
   -- Computes day of year and local time

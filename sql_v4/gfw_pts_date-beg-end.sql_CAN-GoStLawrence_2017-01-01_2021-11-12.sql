@@ -57,8 +57,8 @@
 -- Create container for Global Fishing Watch daily data for final insert
 -- see load_regions.Rmd for creation of below with DBI::sqlCreateTable()
 ---------------------------------------------------------------
--- DROP TABLE IF EXISTS `{tbl_gfw_pts}`;
-CREATE TABLE IF NOT EXISTS `{tbl_gfw_pts}` (
+-- DROP TABLE IF EXISTS `benioff-ocean-initiative.whalesafe_v4.gfw_pts`;
+CREATE TABLE IF NOT EXISTS `benioff-ocean-initiative.whalesafe_v4.gfw_pts` (
   msgid STRING,
   ssvid STRING,
   seg_id STRING,
@@ -95,10 +95,10 @@ OPTIONS (
     require_partition_filter = FALSE);
 
 -- add geography points
-ALTER TABLE `{tbl_gfw_pts}` ADD COLUMN IF NOT EXISTS geog GEOGRAPHY;
+ALTER TABLE `benioff-ocean-initiative.whalesafe_v4.gfw_pts` ADD COLUMN IF NOT EXISTS geog GEOGRAPHY;
 
 -- set description
-ALTER TABLE `{tbl_gfw_pts}`
+ALTER TABLE `benioff-ocean-initiative.whalesafe_v4.gfw_pts`
   ALTER COLUMN `msgid` SET OPTIONS (description = "GFW: unique message id. every row in the the table has a unique msg_id"),
   ALTER COLUMN `ssvid` SET OPTIONS (description = "GFW: source specific vessel id. This is the transponder id, and for AIS this is the MMSI"),
   ALTER COLUMN `seg_id` SET OPTIONS (description = "GFW: unique segment id. This table has one row per segment id per day"),
@@ -132,8 +132,8 @@ ALTER TABLE `{tbl_gfw_pts}`
 ---------------------------------------------------------------
 -- User defined JS helper functions
 ---------------------------------------------------------------
-CREATE TEMP FUNCTION begDAY() AS (DATE('{date_beg}'));
-CREATE TEMP FUNCTION endDAY() AS (DATE('{date_end}'));
+CREATE TEMP FUNCTION begDAY() AS (DATE('2017-01-01'));
+CREATE TEMP FUNCTION endDAY() AS (DATE('2021-11-12'));
 CREATE TEMP FUNCTION priorDAY() AS (DATE_SUB(begDAY(), INTERVAL 1 DAY));
 
 -- Define some utility functions to make thinks more readable
@@ -165,13 +165,13 @@ CREATE TEMP FUNCTION distance_m(lat1 FLOAT64,
 ---------------------------------------------------------------
 -- Query
 ---------------------------------------------------------------
-DELETE FROM `{tbl_gfw_pts}`
+DELETE FROM `benioff-ocean-initiative.whalesafe_v4.gfw_pts`
   WHERE
-    DATE(timestamp) >= DATE('{date_beg}') AND
-    DATE(timestamp) <= DATE('{date_end}') AND
-    rgn = '{rgn}';
+    DATE(timestamp) >= DATE('2017-01-01') AND
+    DATE(timestamp) <= DATE('2021-11-12') AND
+    rgn = 'CAN-GoStLawrence';
 
-INSERT INTO `{tbl_gfw_pts}` (msgid, ssvid, seg_id, timestamp, lat, lon, speed_knots,heading, course, meters_to_prev, implied_speed_knots,
+INSERT INTO `benioff-ocean-initiative.whalesafe_v4.gfw_pts` (msgid, ssvid, seg_id, timestamp, lat, lon, speed_knots,heading, course, meters_to_prev, implied_speed_knots,
   hours, night,  nnet_score,  logistic_score,type,
   source, receiver_type,receiver, distance_from_sat_km, sat_altitude_km,  sat_lat,  sat_lon,
   elevation_m,  distance_from_shore_m,  distance_from_port_m, -- regions,
@@ -204,7 +204,7 @@ WITH
       distance_from_port_m
       -- regions
     FROM
-      `{tbl_gfw_messages_scored}*`
+      `world-fishing-827.pipe_production_v20201001.messages_scored_*`
     WHERE 
       _TABLE_SUFFIX >= YYYYMMDD( begDAY() ) AND
       _TABLE_SUFFIX <= YYYYMMDD( endDAY() )
@@ -216,20 +216,20 @@ WITH
         SELECT
           receiver
         FROM
-          `{tbl_gfw_research_satellite_timing}`
+          `world-fishing-827.gfw_research.pipe_v20201001_satellite_timing`
         WHERE 
-            DATE(_partitiontime) >= DATE('{date_beg}') AND
-            DATE(_partitiontime) <= DATE('{date_end}') AND
+            DATE(_partitiontime) >= DATE('2017-01-01') AND
+            DATE(_partitiontime) <= DATE('2021-11-12') AND
             ABS(dt) > 60
       ))
       -- only valid positions
       AND abs(lat) < 90
       AND abs(lon) < 180
       -- specific to rgn
-      AND lon >= {xmin}
-      AND lon <= {xmax}
-      AND lat >= {ymin}
-      AND lat <= {ymax}
+      AND lon >= -74.86481000000002
+      AND lon <= -54.70344999999999
+      AND lat >= 44.958499999999965
+      AND lat <= 52.22242000000003
   ),
 
   --
@@ -243,7 +243,7 @@ WITH
       lat,
       lon
     FROM
-      `{tbl_gfw_messages_scored}*`
+      `world-fishing-827.pipe_production_v20201001.messages_scored_*`
       WHERE 
       _TABLE_SUFFIX = YYYYMMDD( priorDAY() ) AND 
       (receiver is null -- receiver is null is important,
@@ -253,17 +253,17 @@ WITH
         SELECT
           receiver
         FROM
-          `{tbl_gfw_research_satellite_timing}`
+          `world-fishing-827.gfw_research.pipe_v20201001_satellite_timing`
         WHERE _partitiontime = timestamp(priorDAY())
         AND ABS(dt) > 60))
       AND lat < 90
       AND lat > -90
       AND lon < 180
       -- specific to rgn
-      AND lon >= {xmin}
-      AND lon <= {xmax}
-      AND lat >= {ymin}
-      AND lat <= {ymax}),
+      AND lon >= -74.86481000000002
+      AND lon <= -54.70344999999999
+      AND lat >= 44.958499999999965
+      AND lat <= 52.22242000000003),
 
   --
   -- Loads sunrise lookup table
@@ -274,7 +274,7 @@ WITH
       day,
       AVG(sunrise) AS sunrise
     FROM
-      `{tbl_gfw_static_sunrise}`
+      `world-fishing-827.pipe_static.sunrise`
     GROUP BY
       lat,
       day
@@ -485,7 +485,7 @@ WITH
         norad_id,
         receiver
       FROM
-        `{tbl_gfw_static_norad_to_receiver}`) b
+        `world-fishing-827.pipe_static.norad_to_receiver_v20200127`) b
     ON a.receiver = b.receiver
     LEFT JOIN (
       SELECT
@@ -495,7 +495,7 @@ WITH
         timestamp,
         norad_id
       FROM
-        `{tbl_gfw_satellite_positions_one_second_resolution}*`
+        `world-fishing-827.satellite_positions_v20190208.satellite_positions_one_second_resolution_*`
       WHERE _table_suffix = YYYYMMDD( begDAY() )
       GROUP BY
         norad_id, timestamp) c
@@ -510,17 +510,17 @@ SELECT
   hours, night,  nnet_score,  logistic_score,type,
   source, receiver_type,receiver, distance_from_sat_km, sat_altitude_km,  sat_lat,  sat_lon,
   elevation_m,  distance_from_shore_m,  distance_from_port_m, -- regions,
-  '{rgn}' AS rgn,
+  'CAN-GoStLawrence' AS rgn,
   ST_GEOGPOINT(lon, lat) AS geog
 FROM
   distance_from_satellite
 WHERE
-  DATE(timestamp) >= DATE('{date_beg}') AND
-  DATE(timestamp) <= DATE('{date_end}') AND
+  DATE(timestamp) >= DATE('2017-01-01') AND
+  DATE(timestamp) <= DATE('2021-11-12') AND
   -- NEW: limit to points falling inside given rgn
   ST_COVERS(
     (SELECT geog 
-      FROM `{tbl_rgns}`
-      WHERE rgn = '{rgn}'), 
+      FROM `benioff-ocean-initiative.whalesafe_v4.rgns`
+      WHERE rgn = 'CAN-GoStLawrence'), 
     ST_GEOGPOINT(lon, lat))
 ;

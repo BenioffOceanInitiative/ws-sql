@@ -1,0 +1,38 @@
+---
+title: "Untitled"
+author: "Ben Best"
+date: "11/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+librarian::shelf(
+  dplyr, lubridate, readr)
+
+jobs_csv <- "data/bq-jobs_2021-11-12.csv"
+
+D <- read_csv(jobs_csv)
+
+#summary(D) # 2021-05-17 04:00:09  2021-11-13 15:55:43  
+
+d <- D %>% 
+  filter(as_date(creation_time) > as_date("2021-11-11")) %>% 
+  arrange(creation_time)
+
+write_csv(d, "data/bq-jobs_2021-11-12_gt2021-11-11.csv")
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
