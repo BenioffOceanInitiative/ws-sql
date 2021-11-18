@@ -1,0 +1,48 @@
+---
+title: "get_mmsi"
+author: "Ben Best"
+date: "9/2/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Get MMSI codes across regions (`rgn`)
+
+```{r}
+librarian::shelf(
+  dplyr, glue, here, purrr, readr, stringr, tibble)
+source(here("scripts/db.R"))
+
+# variables
+bq_pts    <- "benioff-ocean-initiative.whalesafe_v4.gfw_pts"
+dir_data  <- "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/IHS"
+mmsi_csv  <- glue("{dir_data}/IHS/mmsi_gfw_pts_{Sys.Date()}.csv") # 2021-11-18: 2017-01-01 to 2021-11-12
+
+stopifnot(bq_table_exists(bq_pts))
+
+sql <- "
+  SELECT 
+    ssvid AS mmsi, 
+    DATE(MIN(timestamp)) AS date_min, DATE(MAX(timestamp)) AS date_max, 
+    COUNT(*) AS nrows
+  FROM gfw_pts 
+  GROUP BY ssvid"
+d <- dbGetQuery(con, sql)
+d <- d %>% 
+  mutate(
+    num_chars  = map_int(mmsi, nchar),
+    is_integer = map_int(mmsi, function(x) !is.na(as.integer(x))),
+    is_valid   = map2_lgl(
+      num_chars, is_integer, 
+      function(n, i) i & (n %in% c(7, 9)) )) %>% 
+  arrange(is_valid, mmsi)
+write_csv(d, mmsi_csv)
+
+table(d$is_valid)
+```
+

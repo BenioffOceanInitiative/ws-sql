@@ -1,0 +1,109 @@
+---
+title: "load_zones"
+author: "Ben Best"
+date: "11/18/2021"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+    # pandoc_args: [
+    #   "--shift-heading-level-by=-1"]
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning = F, message = F)
+```
+
+```{r libraries}
+librarian::shelf(
+  dplyr, DT, glue, here, googlesheets4, here, htmltools, 
+  mapview, purrr, sf, stringr, tibble)
+source(here("scripts/db.R"))
+```
+
+```{r, include=FALSE}
+# Init Step to make sure that the dependencies are loaded
+tagList(datatable(cars))
+mapview()
+```
+
+* [load `zones` spatially into db, including dates and other parameters (vessel, mandatory/voluntary) · Issue #8 · BenioffOceanInitiative/ws-sql](https://github.com/BenioffOceanInitiative/ws-sql/issues/8)
+  - nested under `rgns`: [Create and Load Regions `rgns` for hierarchical spatial analysis · Issue #7 · BenioffOceanInitiative/ws-sql](https://github.com/BenioffOceanInitiative/ws-sql/issues/7)
+  - [slow_zone_metadata](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=0) Google Sheet
+  
+
+```{r, results='asis'}
+dir_shp   <- "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/WhaleSafeUSA_Shapefiles"
+rgns_json <- here("data/ws-rgns.geojson")
+
+# [slow_zone_metadata - Google Sheets](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=0)
+zones_gsheetid <- "1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM"
+# shared with ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com
+# https://console.cloud.google.com/iam-admin/serviceaccounts/details/114569616080626900590;edit=true?previousPage=%2Fapis%2Fcredentials%3Fproject%3Dbenioff-ocean-initiative%26authuser%3D1&authuser=1&project=benioff-ocean-initiative
+stopifnot(file.exists(auth_json)) # auth_json defined in db.R
+
+gs4_auth(path = auth_json)
+#sheet_names(zones_gsheetid) %>% paste(collapse = ", ")
+# filtering_options, meta_regions, meta_zones, for_website
+
+# rgns
+# read_sf(rgns_json) %>% 
+#   st_drop_geometry() %>% 
+#   pull(rgn) %>% 
+#   paste(collapse = ", ") %>% 
+#   cat() # USA-West, USA-GoMex, USA-East, CAN-GoStLawrence
+
+d_zones <- read_sheet(zones_gsheetid, "zones") %>% 
+  arrange(rgn, zone)
+
+hdr <- function(x, h="##"){
+  cat(glue("\n\n{h} {x}\n\n"))
+}
+
+for (r in unique(d_zones$rgn)){ # r = "USA-West"
+
+  hdr(r, "#")
+  
+  zones_r <- d_zones %>% 
+    filter(rgn == r) %>% 
+    pull(zone)
+  
+  for (z in zones_r){ # z = "SF-VSR"; z = "SE-RwhaleNursery"
+    
+    hdr(z)
+    
+    d_z <- d_zones %>% 
+      filter(zone == z)
+    d_z %>% select(path_shp)
+    
+    if (is.na(d_z$path_shp)){
+      hdr("MISSING `path_shp`", "###")
+      next
+    } 
+    
+    path_shp   <- glue(d_z$path_shp) # expect "{dir_shp}/.."
+    shp_filter <- d_z$shp_filter
+    
+    s_z <- read_sf(path_shp)
+    
+    if (!is.na(shp_filter))
+      s_z <- s_z %>% filter(eval(parse(text = shp_filter)))
+    
+    hdr("map", "###")
+    map <- mapview(s_z)
+    print(tagList(map@map))
+    
+    hdr("table", "###")
+    tbl <- s_z %>% 
+      st_drop_geometry() %>% 
+      datatable()
+    print(tagList(tbl))
+  }
+}
+```
+
