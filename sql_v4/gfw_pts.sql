@@ -36,13 +36,15 @@
 -- SELECT geog AS pt_geog 
 --   FROM `benioff-ocean-initiative.whalesafe_v4.gfw_pts`
 --   WHERE 
---   	DATE(timestamp) = DATE('2020-04-15') AND
+--   	DATE(timestamp) >= DATE('2017-01-01') AND
+--   	DATE(timestamp) <= DATE('2017-02-01') AND
 -- 	rgn = 'USA-GoMex';
 -- 
 -- SELECT geog 
 --   FROM `benioff-ocean-initiative.whalesafe_v4.gfw_pts` AS pts
 --   WHERE
---     DATE(timestamp) = DATE('2020-04-15') AND
+--   	DATE(timestamp) >= DATE('2017-01-01') AND
+--   	DATE(timestamp) <= DATE('2017-02-01') AND
 --     NOT ST_COVERS(
 --       (SELECT geog 
 --         FROM `benioff-ocean-initiative.whalesafe_v4.rgns`
@@ -90,7 +92,7 @@ PARTITION BY DATE(timestamp)
 CLUSTER BY ssvid, rgn
 OPTIONS (
     description              = "partitioned by day, clustered by (ssvid, rgn)",
-    require_partition_filter = TRUE);
+    require_partition_filter = FALSE);
 
 -- add geography points
 ALTER TABLE `{tbl_gfw_pts}` ADD COLUMN IF NOT EXISTS geog GEOGRAPHY;
@@ -130,11 +132,9 @@ ALTER TABLE `{tbl_gfw_pts}`
 ---------------------------------------------------------------
 -- User defined JS helper functions
 ---------------------------------------------------------------
-CREATE TEMP FUNCTION toDAY() AS (DATE('{date}'));
-
-CREATE TEMP FUNCTION yesterDAY() AS (DATE_SUB(toDAY(), INTERVAL 1 DAY));
-
-CREATE TEMP FUNCTION tomorrow() AS (DATE_ADD(toDAY(), INTERVAL 1 DAY));
+CREATE TEMP FUNCTION begDAY() AS (DATE('{date_beg}'));
+CREATE TEMP FUNCTION endDAY() AS (DATE('{date_end}'));
+CREATE TEMP FUNCTION priorDAY() AS (DATE_SUB(begDAY(), INTERVAL 1 DAY));
 
 -- Define some utility functions to make thinks more readable
 CREATE TEMP FUNCTION YYYYMMDD(d DATE) AS (
@@ -167,7 +167,8 @@ CREATE TEMP FUNCTION distance_m(lat1 FLOAT64,
 ---------------------------------------------------------------
 DELETE FROM `{tbl_gfw_pts}`
   WHERE
-    DATE(timestamp) = DATE('{date}') AND
+    DATE(timestamp) >= DATE('{date_beg}') AND
+    DATE(timestamp) <= DATE('{date_end}') AND
     rgn = '{rgn}';
 
 INSERT INTO `{tbl_gfw_pts}` (msgid, ssvid, seg_id, timestamp, lat, lon, speed_knots,heading, course, meters_to_prev, implied_speed_knots,
@@ -204,7 +205,9 @@ WITH
       -- regions
     FROM
       `{tbl_gfw_messages_scored}*`
-    WHERE _TABLE_SUFFIX = YYYYMMDD( toDAY() )
+    WHERE 
+      _TABLE_SUFFIX >= YYYYMMDD( begDAY() ) AND
+      _TABLE_SUFFIX <= YYYYMMDD( endDAY() )
     AND source = 'spire'
     AND (receiver is null -- receiver is null is important,
                           -- otherwise null spire positions are ignored
@@ -214,8 +217,10 @@ WITH
           receiver
         FROM
           `{tbl_gfw_research_satellite_timing}`
-        WHERE _partitiontime = timestamp(toDAY())
-        AND ABS(dt) > 60
+        WHERE 
+            DATE(_partitiontime) >= DATE('{date_beg}') AND
+            DATE(_partitiontime) <= DATE('{date_end}') AND
+            ABS(dt) > 60
       ))
       -- only valid positions
       AND abs(lat) < 90
@@ -239,27 +244,26 @@ WITH
       lon
     FROM
       `{tbl_gfw_messages_scored}*`
-      WHERE _TABLE_SUFFIX = YYYYMMDD( yesterDAY() )
-      AND (receiver is null -- receiver is null is important,
+      WHERE 
+      _TABLE_SUFFIX = YYYYMMDD( priorDAY() ) AND 
+      (receiver is null -- receiver is null is important,
                             -- otherwise null spire positions are ignored
         -- OR receiver in ('rORBCOMM000','rORBCOMM999') -- exclude ORBCOM
-        OR receiver not in (
-          SELECT
-            receiver
-      FROM
-        `{tbl_gfw_research_satellite_timing}`
-      WHERE _partitiontime = timestamp(yesterDAY())
-      AND ABS(dt) > 60
-    ))
-    AND lat < 90
-    AND lat > -90
-    AND lon < 180
-    -- specific to rgn
-    AND lon >= {xmin}
-    AND lon <= {xmax}
-    AND lat >= {ymin}
-    AND lat <= {ymax}
-  ),
+      OR receiver not in (
+        SELECT
+          receiver
+        FROM
+          `{tbl_gfw_research_satellite_timing}`
+        WHERE _partitiontime = timestamp(priorDAY())
+        AND ABS(dt) > 60))
+      AND lat < 90
+      AND lat > -90
+      AND lon < 180
+      -- specific to rgn
+      AND lon >= {xmin}
+      AND lon <= {xmax}
+      AND lat >= {ymin}
+      AND lat <= {ymax}),
 
   --
   -- Loads sunrise lookup table
@@ -371,7 +375,7 @@ WITH
           prev_timestamp), 0) hours
     FROM
       prev_position
-    WHERE DATE(timestamp) = toDAY()
+    WHERE DATE(timestamp) >= begDAY() -- strip off previous days outside desired range
   ),
 
   hours_and_distance AS (
@@ -492,7 +496,7 @@ WITH
         norad_id
       FROM
         `{tbl_gfw_satellite_positions_one_second_resolution}*`
-      WHERE _table_suffix = YYYYMMDD( toDAY() )
+      WHERE _table_suffix = YYYYMMDD( begDAY() )
       GROUP BY
         norad_id, timestamp) c
     ON a.timestamp = c.timestamp
@@ -511,7 +515,8 @@ SELECT
 FROM
   distance_from_satellite
 WHERE
-  DATE(timestamp) = DATE('{date}') AND
+  DATE(timestamp) >= DATE('{date_beg}') AND
+  DATE(timestamp) <= DATE('{date_end}') AND
   -- NEW: limit to points falling inside given rgn
   ST_COVERS(
     (SELECT geog 
@@ -519,33 +524,3 @@ WHERE
       WHERE rgn = '{rgn}'), 
     ST_GEOGPOINT(lon, lat))
 ;
-
--- OLD: Delete points falling outside given rgn
--- DELETE FROM `{tbl_gfw_pts}`
--- WHERE
---   DATE(timestamp) = DATE('{date}') AND
---   rgn = '{rgn}' AND
---   msgid IN (
---     SELECT msgid FROM
---     `{tbl_gfw_pts}` AS pts
---     WHERE
---       DATE(timestamp) = DATE('{date}') AND
---       NOT ST_COVERS(
---         (SELECT geog FROM `benioff-ocean-initiative.whalesafe_v4.rgns`
---           WHERE rgn = '{rgn}'), pts.geog));
--- DELETE FROM `benioff-ocean-initiative.whalesafe_v4.gfw_daily_spireonly`
--- WHERE
---   DATE(timestamp) = DATE('2021-10-14') AND
---   rgn = 'CAN_GoStLawrence';
--- DELETE FROM `benioff-ocean-initiative.whalesafe_v4.gfw_daily_spireonly`
--- WHERE
---   DATE(timestamp) = DATE('2021-10-14') AND
---   rgn = 'CAN_GoStLawrence' AND
---   msgid IN (
---     SELECT msgid FROM
---     `benioff-ocean-initiative.whalesafe_v4.gfw_daily_spireonly` AS pts
---     WHERE
---       DATE(timestamp) = DATE('2021-10-14') AND
---       NOT ST_COVERS(
---         (SELECT geog FROM `benioff-ocean-initiative.whalesafe_v4.rgns`
---           WHERE rgn = 'CAN_GoStLawrence'), pts.geog))
