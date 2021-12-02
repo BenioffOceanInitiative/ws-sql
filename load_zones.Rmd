@@ -22,7 +22,8 @@ knitr::opts_chunk$set(echo = T, warning = F, message = F)
 ```{r libraries}
 librarian::shelf(
   dplyr, DT, glue, here, googlesheets4, here, htmltools, 
-  mapview, purrr, sf, stringr, tibble)
+  mapview, purrr, sf, stringr, tibble,
+  quiet = T)
 source(here("scripts/db.R"))
 ```
 
@@ -38,7 +39,7 @@ mapview()
   
 
 ```{r, results='asis'}
-dir_shp   <- "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/WhaleSafeUSA_Shapefiles"
+dir_shp   <- "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/zones_shp"
 rgns_json <- here("data/ws-rgns.geojson")
 
 # [slow_zone_metadata - Google Sheets](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=0)
@@ -59,33 +60,53 @@ gs4_auth(path = auth_json)
 #   cat() # USA-West, USA-GoMex, USA-East, CAN-GoStLawrence
 
 d_zones <- read_sheet(zones_gsheetid, "zones") %>% 
-  arrange(rgn, zone)
+  arrange(rgn, zone) 
+# View(d_zones)
 
-hdr <- function(x, h="##"){
+hdr <- function(x, h="###"){
   cat(glue("\n\n{h} {x}\n\n"))
 }
+```
 
+# Zones
+
+Source: [slow_zone_metadata - Google Sheets](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=0)
+
+## MISSING shapefile
+
+```{r, results='asis'}
+tbl <- d_zones %>% 
+  filter(is.na(path_shp)) %>% 
+  select(-note, -path_shp, -shp_filter) %>% 
+  datatable()
+
+print(tagList(tbl))
+```
+
+```{r, results='asis'}
 for (r in unique(d_zones$rgn)){ # r = "USA-West"
-
-  hdr(r, "#")
+  
+  hdr(r, "##")
   
   zones_r <- d_zones %>% 
-    filter(rgn == r) %>% 
+    filter(
+      rgn == r,
+      !is.na(path_shp)) %>% 
     pull(zone)
   
   for (z in zones_r){ # z = "SF-VSR"; z = "SE-RwhaleNursery"
-    
-    hdr(z)
     
     d_z <- d_zones %>% 
       filter(zone == z)
     d_z %>% select(path_shp)
     
     if (is.na(d_z$path_shp)){
-      hdr("MISSING `path_shp`", "###")
+      hdr(glue("{z}: NO `path_shp`"))
       next
     } 
     
+    hdr(z)
+  
     path_shp   <- glue(d_z$path_shp) # expect "{dir_shp}/.."
     shp_filter <- d_z$shp_filter
     
@@ -94,11 +115,51 @@ for (r in unique(d_zones$rgn)){ # r = "USA-West"
     if (!is.na(shp_filter))
       s_z <- s_z %>% filter(eval(parse(text = shp_filter)))
     
-    hdr("map", "###")
+    hdr("map", "####")
     map <- mapview(s_z)
     print(tagList(map@map))
     
-    hdr("table", "###")
+    hdr("table", "####")
+    tbl <- s_z %>% 
+      st_drop_geometry() %>% 
+      datatable()
+    print(tagList(tbl))
+  }
+}
+```
+
+# Shapefiles
+
+```{r, results='asis'}
+stopifnot(fs::dir_exists(dir_shp))
+d_shps <- tibble(
+  shp = list.files(dir_shp, ".*\\.shp$", recursive = T)) %>% 
+  mutate(
+    rgn = str_replace(shp, "(.*?)/.*", "\\1"))
+
+rgns <- unique(d_shps$rgn)
+
+for (rgn in rgns){ # rgn = rgns[1]
+
+  hdr(rgn, "##")
+  
+  d_shps_rgn <- filter(d_shps, rgn == !!rgn)
+  
+  for (shp in d_shps_rgn$shp){ # shp = d_shps_rgn$shp
+    
+    path_shp <- glue("{dir_shp}/{shp}")
+    
+    hdr(shp, "###")
+    
+    s_z <- read_sf(path_shp)
+    
+    hdr("map", "####")
+    
+    map <- mapview(s_z)
+    
+    print(tagList(map@map))
+    
+    hdr("table", "####")
     tbl <- s_z %>% 
       st_drop_geometry() %>% 
       datatable()
