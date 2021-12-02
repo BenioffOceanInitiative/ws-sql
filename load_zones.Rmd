@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo = T, warning = F, message = F)
 ```{r libraries}
 librarian::shelf(
   dplyr, DT, glue, here, googlesheets4, here, htmltools, 
-  mapview, purrr, sf, stringr, tibble, tidyr,
+  lwgeom, mapview, purrr, sf, stringr, tibble, tidyr,
   quiet = T)
 source(here("scripts/db.R"))
 ```
@@ -103,12 +103,51 @@ zones_sf <- d_zones %>%
 write_sf(zones_sf, zones_json, delete_dsn=T)
 ```
 
-
 ```{r, eval = F}
 # upload zones without missing shapefile into bigquery
+bq_tbl_zones <- "benioff-ocean-initiative.whalesafe_v4.zones"
+bq_ds        <- "benioff-ocean-initiative.whalesafe_v4"
 
 source(here("scripts/db.R"))
 
+zones <- read_sf(zones_json)
+
+
+zones %>% 
+  sf::st_is_valid()
+  lwgeom::lwgeom_make_valid()
+
+  Query error: ST_GeogFromText failed: Invalid polygon loop: Edge 55 crosses edge 57 at [2:1]
+
+zones_wkt <- zones %>% 
+  mutate(
+    wkt = st_as_text(geometry)) %>% 
+  st_drop_geometry()
+
+if (!bq_table_exists(bq_tbl_zones)){
+  bq_table_delete(bq_tbl_zones)
+}
+
+# create the table schema
+bq_zones <- bq_table_create(
+  bq_tbl_zones,
+  zones_wkt,
+  friendly_name = "WhaleSafe zones",
+  description   = "Created by:
+      https://github.com/BenioffOceanInitiative/ws-sql/blob/main/load_zones.Rmd",
+  labels = list(category = "spatial"))
+
+# upload the table contents
+bq_table_upload(bq_tbl_zones, zones_wkt)
+
+# create and update Geography column from well-known text (wkt)
+dbExecute(con, glue(
+  "ALTER TABLE {bq_tbl_zones} ADD COLUMN IF NOT EXISTS geog GEOGRAPHY;
+   UPDATE {bq_tbl_zones} SET geog = ST_GEOGFROMTEXT(wkt, make_valid => TRUE) WHERE TRUE;
+   ALTER TABLE {bq_tbl_zones} DROP COLUMN IF EXISTS wkt;"))
+# ERROR in BigQuery SQL Workspace
+#   Query error: ST_GeogFromText failed: Invalid polygon loop: Edge 55 crosses edge 57 at [2:1]
+#   SOLUTION: ST_GEOGFROMTEXT(wkt, make_valid => TRUE)
 ```
 
 
