@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo = T, warning = F, message = F)
 ```{r libraries}
 librarian::shelf(
   dplyr, DT, glue, here, googlesheets4, here, htmltools, 
-  mapview, purrr, sf, stringr, tibble,
+  mapview, purrr, sf, stringr, tibble, tidyr,
   quiet = T)
 source(here("scripts/db.R"))
 ```
@@ -60,6 +60,9 @@ gs4_auth(path = auth_json)
 #   cat() # USA-West, USA-GoMex, USA-East, CAN-GoStLawrence
 
 d_zones <- read_sheet(zones_gsheetid, "zones") %>% 
+  mutate(
+    start_date = as.character(start_date),
+    end_date   = as.character(end_date)) %>% 
   arrange(rgn, zone) 
 # View(d_zones)
 
@@ -82,6 +85,32 @@ tbl <- d_zones %>%
 
 print(tagList(tbl))
 ```
+
+```{r, eval = F}
+# create geojson
+zones_json <- here("data/ws-zones.geojson")
+
+zones_sf <- d_zones %>% 
+  filter(!is.na(path_shp)) %>% 
+  mutate(
+    geometry = map2(path_shp, shp_filter, function(p, f){
+      read_sf(glue(p)) %>% 
+        st_geometry() })) %>% 
+  unnest(geometry) %>% 
+  st_as_sf()
+
+write_sf(zones_sf, zones_json, delete_dsn=T)
+```
+
+
+```{r, eval = F}
+# upload zones without missing shapefile into bigquery
+
+source(here("scripts/db.R"))
+
+```
+
+
 
 ```{r, results='asis'}
 for (r in unique(d_zones$rgn)){ # r = "USA-West"
