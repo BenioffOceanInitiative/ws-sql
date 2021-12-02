@@ -95,6 +95,7 @@ zones_sf <- d_zones %>%
   mutate(
     geometry = map2(path_shp, shp_filter, function(p, f){
       read_sf(glue(p)) %>% 
+        st_transform(4326) %>% 
         st_geometry() })) %>% 
   unnest(geometry) %>% 
   st_as_sf()
