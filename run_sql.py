@@ -1,3 +1,4 @@
+# libraries
 import pandas as pd
 from google.cloud  import bigquery
 from google.oauth2 import service_account
@@ -33,6 +34,7 @@ tbl_gfw_satellite_positions_one_second_resolution = "world-fishing-827.satellite
 tbl_gfw_segs = "world-fishing-827.gfw_research.pipe_v20201001_segs"
 tbl_gfw_pts  = "benioff-ocean-initiative.whalesafe_v4.gfw_pts"
 tbl_rgns     = "benioff-ocean-initiative.whalesafe_v4.rgns"
+tbl_zones    = "benioff-ocean-initiative.whalesafe_v4.zones"
 tbl_ais_data = "benioff-ocean-initiative.whalesafe_v4.ais_data"
 tbl_log      = "benioff-ocean-initiative.whalesafe_v4.timestamp_log"
 
@@ -47,13 +49,19 @@ def msg(txt):
   sys.stdout.flush()
 
 def sql_fmt(f):
-  return(open(f, "r").read().format(**dict(globals(), **locals())))
+  if os.path.exists(f):
+    return(open(f, "r").read().format(**dict(globals(), **locals())))
+  else:
+    return(f.format(**dict(globals(), **locals())))
 
 delta = date_end - date_beg
 n_days = delta.days + 1 # 132 days
 
-df_rgns = bq_client.query(f"SELECT rgn, ST_Extent(geog) AS bbox FROM {dataset}.rgns GROUP BY rgn ORDER BY rgn").to_dataframe()
+df_rgns = bq_client.query(f"SELECT rgn, ST_Extent(geog) AS bbox FROM {tbl_rgns} GROUP BY rgn ORDER BY rgn").to_dataframe()
 n_rgns = df_rgns.shape[0]
+
+df_zones = bq_client.query(f"SELECT * EXCEPT (geog) FROM {tbl_zones} ORDER BY rgn, zone").to_dataframe()
+n_zones = df_zones.shape[0]
 
 msg(f'Iterating over {n_rgns} regions for a span of {n_days} days.')
 
@@ -91,6 +99,53 @@ for i_rgn,row in df_rgns.iterrows(): # i_rgn = 2; row = df_rgns.loc[i_rgn,]
   # f.write(sql); f.close()
   job = bq_client.query(sql, job_id_prefix = job_pfx)
   # result = job.result() # uncomment to run
+
+msg(f'Iterating over {n_zones} zones.')
+
+for i_zone,row in df_zones.iterrows(): # i_zone = 0; row = df_zones.loc[i_zone,]
+  rgn  = row['rgn']
+  zone = row['zone']
+
+  job_pfx = f'ais_data_{rgn}_{zone}_'
+  msg(f'{i_zone+1} of {n_zones}: region_zone {rgn}_{zone}: {job_pfx}')
+  sql = sql_fmt(path_ais_data_sql)
+  job = bq_client.query(sql, job_id_prefix = job_pfx)
+  # result = job.result() # uncomment to run
+  
+  # DEBUG Query error: Scalar subquery produced more than one element at [44:1]
+  sql = sql_fmt("""
+    DECLARE new_ais_ts DEFAULT (SELECT SAFE_CAST('2016-12-31 12:59:59 UTC' AS TIMESTAMP));
+    SELECT *
+      FROM `{tbl_gfw_pts}`
+      WHERE
+        DATE(timestamp) > DATE(new_ais_ts) AND
+        ST_COVERS(
+          (SELECT geog
+            FROM `{tbl_zones}`
+            WHERE zone = '{zone}'),
+          geog)""")
+    print(sql)
+  sql = sql_fmt("""
+    SELECT rgn, zone
+      FROM `{tbl_zones}`
+      WHERE zone = '{zone}'""")
+    print(sql)
+  job = bq_client.query(sql, job_id_prefix = job_pfx)
+  job.to_dataframe()
+  result = job.result() # uncomment to run
+
+
+# TODO: ais_segments_sql.sql 
+  # - by rgn/zone or all at once?
+  # - load zones first
+  job_pfx = f'ais_segments_{rgn}_{date_beg}_{date_end}_'
+  msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
+  sql = sql_fmt(path_ais_segments_sql)
+  # f = open(f'{path_ais_segments_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
+  # f.write(sql); f.close()
+  job = bq_client.query(sql, job_id_prefix = job_pfx)
+  # result = job.result() # uncomment to run
+
 
 
 # show job status

@@ -22,12 +22,12 @@ knitr::opts_chunk$set(echo = T, warning = F, message = F)
 ```{r libraries}
 librarian::shelf(
   dplyr, DT, glue, here, googlesheets4, here, htmltools, 
-  lwgeom, mapview, purrr, sf, stringr, tibble, tidyr,
+  lwgeom, mapview, purrr, readr, sf, stringr, tibble, tidyr,
   quiet = T)
 source(here("scripts/db.R"))
 ```
 
-```{r, include=FALSE}
+```{r html-dependencies, include=FALSE}
 # Init Step to make sure that the dependencies are loaded
 tagList(datatable(cars))
 mapview()
@@ -38,9 +38,11 @@ mapview()
   - [slow_zone_metadata](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=0) Google Sheet
   
 
-```{r, results='asis'}
-dir_shp   <- "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/zones_shp"
-rgns_json <- here("data/ws-rgns.geojson")
+```{r paths-gsheet, results='asis'}
+dir_shp    <- "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/zones_shp"
+rgns_json  <- here("data/ws-rgns.geojson")
+zones_json <- here("data/ws-zones.geojson")
+zones_csv  <- here("data/ws-zones.csv")
 
 # [slow_zone_metadata - Google Sheets](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=0)
 zones_gsheetid <- "1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM"
@@ -77,7 +79,7 @@ Source: [slow_zone_metadata - Google Sheets](https://docs.google.com/spreadsheet
 
 ## MISSING shapefile
 
-```{r, results='asis'}
+```{r tbl-zones, results='asis'}
 tbl <- d_zones %>% 
   filter(is.na(path_shp)) %>% 
   select(-note, -path_shp, -shp_filter) %>% 
@@ -86,24 +88,43 @@ tbl <- d_zones %>%
 print(tagList(tbl))
 ```
 
-```{r, eval = F}
-# create geojson
-zones_json <- here("data/ws-zones.geojson")
+```{r make-zones-geojson, eval = F}
+# ensure each zone is uniquely named
+stopifnot(any(!duplicated(d_zones$zone)))
 
+get_sf <- function(path_shp, shp_filter){
+  # p = zones_sf$path_shp[1]; f = zones_sf$shp_filter[1]
+  message(glue("path_shp:{path_shp}; shp_filter:{shp_filter}"))
+  
+  # if (f == 'Restr_Area == "Mid-Atl Block Island Sound"')
+  #browser()
+  f_expr <- rlang::parse_expr(shp_filter)
+  
+  read_sf(glue(path_shp)) %>% 
+    filter(!!f_expr) %>% 
+    st_transform(4326) %>%
+    st_union()
+}
+
+# create geojson
 zones_sf <- d_zones %>% 
   filter(!is.na(path_shp)) %>% 
+  slice(4:13) %>% 
   mutate(
-    geometry = map2(path_shp, shp_filter, function(p, f){
-      read_sf(glue(p)) %>% 
-        st_transform(4326) %>% 
-        st_geometry() })) %>% 
+    geometry = map2(path_shp, shp_filter, get_sf)) %>% 
   unnest(geometry) %>% 
   st_as_sf()
 
+# ensure each zone is uniquely named
+stopifnot(any(!duplicated(zones_sf$zone)))
+
 write_sf(zones_sf, zones_json, delete_dsn=T)
+zones_sf %>% 
+  st_drop_geometry() %>% 
+  write_csv(zones_csv)
 ```
 
-```{r, eval = F}
+```{r upload-zones-to-bq, eval = F}
 # upload zones without missing shapefile into bigquery
 bq_tbl_zones <- "benioff-ocean-initiative.whalesafe_v4.zones"
 bq_ds        <- "benioff-ocean-initiative.whalesafe_v4"
@@ -112,19 +133,15 @@ source(here("scripts/db.R"))
 
 zones <- read_sf(zones_json)
 
-
-zones %>% 
-  sf::st_is_valid()
-  lwgeom::lwgeom_make_valid()
-
-  Query error: ST_GeogFromText failed: Invalid polygon loop: Edge 55 crosses edge 57 at [2:1]
+stopifnot(st_is_valid(zones)) # lwgeom::lwgeom_make_valid()
+# Query error: ST_GeogFromText failed: Invalid polygon loop: Edge 55 crosses edge 57 at [2:1]
 
 zones_wkt <- zones %>% 
   mutate(
     wkt = st_as_text(geometry)) %>% 
   st_drop_geometry()
 
-if (!bq_table_exists(bq_tbl_zones)){
+if (bq_table_exists(bq_tbl_zones)){
   bq_table_delete(bq_tbl_zones)
 }
 
@@ -150,9 +167,7 @@ dbExecute(con, glue(
 #   SOLUTION: ST_GEOGFROMTEXT(wkt, make_valid => TRUE)
 ```
 
-
-
-```{r, results='asis'}
+```{r show-map-table-per-zone, results='asis'}
 for (r in unique(d_zones$rgn)){ # r = "USA-West"
   
   hdr(r, "##")
