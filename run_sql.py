@@ -13,8 +13,8 @@ import subprocess
 import os
 
 # dates
-date_beg = date(2017,  1,  1)
-date_end = date(2021, 11, 12)
+date_init = date(2017,  1,  1)
+date_end  = date.today()
 
 # bigquery connection
 project_id       = 'benioff-ocean-initiative'
@@ -57,58 +57,82 @@ def sql_fmt(f):
 delta = date_end - date_beg
 n_days = delta.days + 1 # 132 days
 
-df_rgns = bq_client.query(f"SELECT rgn, ST_Extent(geog) AS bbox FROM {tbl_rgns} GROUP BY rgn ORDER BY rgn").to_dataframe()
+df_rgns = bq_client.query(f"""
+  SELECT r.*, date_max FROM 
+  ((SELECT rgn, ST_Extent(geog) AS bbox 
+   FROM `{tbl_rgns}`
+   GROUP BY rgn) r
+  LEFT JOIN
+    (SELECT rgn, MAX(DATE(timestamp)) AS date_max
+     FROM `{tbl_gfw_pts}` 
+     GROUP BY rgn) p ON r.rgn = p.rgn)
+  ORDER BY rgn
+  """).to_dataframe()
 n_rgns = df_rgns.shape[0]
 
-df_zones = bq_client.query(f"SELECT * EXCEPT (geog) FROM {tbl_zones} ORDER BY rgn, zone").to_dataframe()
+df_zones = bq_client.query(f"""
+  SELECT z.*, date_max FROM 
+  ((SELECT * EXCEPT (geog) 
+    FROM {tbl_zones} ORDER BY rgn, zone) z
+   LEFT JOIN
+    (SELECT zone, (MAX(DATE(TIMESTAMP))) AS date_max 
+     FROM `{tbl_ais_data}`
+     WHERE DATE(TIMESTAMP) >= '2017-01-01'
+     GROUP BY zone) a ON z.zone = a.zone)
+  ORDER BY rgn, zone
+  """).to_dataframe()
 n_zones = df_zones.shape[0]
 
-msg(f'Iterating over {n_rgns} regions for a span of {n_days} days.')
+msg(f'Iterating over {n_rgns} regions')
 
-for i_rgn,row in df_rgns.iterrows(): # i_rgn = 2; row = df_rgns.loc[i_rgn,]
+for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.loc[i_rgn,]
   rgn = row['rgn']
   xmin, xmax, ymin, ymax = [row['bbox'][key] for key in ['xmin', 'xmax', 'ymin', 'ymax']]
+  date_beg = row['date_max']
 
   # gfw_pts.sql
   job_pfx = f'gfw_pts_{rgn}_{date_beg}_{date_end}_'
   msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql = sql_fmt(path_gfw_pts_sql)
+  sql = sql_fmt(path_gfw_pts_sql) # print(sql)
   # f = open(f'{path_gfw_pts_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
   # f.write(sql); f.close()
   job = bq_client.query(sql, job_id_prefix = job_pfx)
-  # result = job.result() # uncomment to run
+  result = job.result() # uncomment to run
 
-  # TODO: ais_data.sql 
-  # - by rgn/zone or all at once?
-  # - load zones first
-  job_pfx = f'ais_data_{rgn}_{date_beg}_{date_end}_'
-  msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql = sql_fmt(path_gfw_pts_sql)
-  # f = open(f'{path_gfw_pts_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
-  # f.write(sql); f.close()
-  job = bq_client.query(sql, job_id_prefix = job_pfx)
-  # result = job.result() # uncomment to run
+  # # TODO: ais_data.sql for regions? or just zones?
+  # # - by rgn/zone or all at once?
+  # # - load zones first
+  # job_pfx = f'ais_data_{rgn}_{date_beg}_{date_end}_'
+  # msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
+  # sql = sql_fmt(path_gfw_pts_sql)
+  # # f = open(f'{path_gfw_pts_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
+  # # f.write(sql); f.close()
+  # job = bq_client.query(sql, job_id_prefix = job_pfx)
+  # # result = job.result() # uncomment to run
 
-# TODO: ais_segments_sql.sql 
-  # - by rgn/zone or all at once?
-  # - load zones first
-  job_pfx = f'ais_segments_{rgn}_{date_beg}_{date_end}_'
-  msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql = sql_fmt(path_ais_segments_sql)
-  # f = open(f'{path_ais_segments_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
-  # f.write(sql); f.close()
-  job = bq_client.query(sql, job_id_prefix = job_pfx)
-  # result = job.result() # uncomment to run
+  # # TODO: ais_segments_sql.sql for regions? or just zones? 
+  # # - by rgn/zone or all at once?
+  # # - load zones first
+  # job_pfx = f'ais_segments_{rgn}_{date_beg}_{date_end}_'
+  # msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
+  # sql = sql_fmt(path_ais_segments_sql)
+  # # f = open(f'{path_ais_segments_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
+  # # f.write(sql); f.close()
+  # job = bq_client.query(sql, job_id_prefix = job_pfx)
+  # # result = job.result() # uncomment to run
 
 msg(f'Iterating over {n_zones} zones.')
 
 for i_zone,row in df_zones.iterrows(): # i_zone = 0; row = df_zones.loc[i_zone,]
-  rgn  = row['rgn']
-  zone = row['zone']
+  rgn      = row['rgn']
+  zone     = row['zone']
+  date_beg = row['date_max']
+  if date_beg == None:
+    date_beg = date_init
 
-  job_pfx = f'ais_data_{rgn}_{zone}_'
+  job_pfx = f'ais_data_{rgn}_{zone}_{date_beg}_{date_end}_'
   msg(f'{i_zone+1} of {n_zones}: region_zone {rgn}_{zone}: {job_pfx}')
-  sql = sql_fmt(path_ais_data_sql)
+  sql = sql_fmt(path_ais_data_sql) # print(sql)
   job = bq_client.query(sql, job_id_prefix = job_pfx)
   # result = job.result() # uncomment to run
   

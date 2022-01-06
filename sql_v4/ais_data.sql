@@ -7,23 +7,6 @@
 -- -- #          '--;____'--.'-,
 -- -- #Sean Goral/..'Ben Best''\ Callie Steffen ''' Morgan Visalli # --
 
--- # Step 0: DECLARE newest timestamp.
--- # IF STARTING FROM SCRATCH, USE FIRST DECLARE STATEMENT AND COMMENT SECOND DECLARE STATEMENT BELOW:
-DECLARE
-new_ais_ts DEFAULT
--- (SELECT SAFE_CAST('2021-10-19 12:59:59 UTC' AS TIMESTAMP));
-(SELECT SAFE_CAST('2016-12-31 12:59:59 UTC' AS TIMESTAMP)); -- to start 2017-01-01
-
--- # IF UPDATING: DECLARE newest AIS timestamp from `whalesafe_v4.ais_data` table as 'new_ais_ts'
--- DECLARE
--- new_ais_ts DEFAULT(
---           SELECT
---           (MAX(timestamp))
---           FROM `whalesafe_v4.ais_data`
---           WHERE
---           DATE(timestamp) > DATE_SUB(CURRENT_DATE(), INTERVAL 2 MONTH) -- # query last 2 MONTHS for max timestamp
---           LIMIT 1);
-
 -- # Step 1: Make temporary table `temp_ais_data` for incoming GFW AIS data
 CREATE TEMPORARY TABLE `temp_ais_data` (
   mmsi INT64,
@@ -62,7 +45,7 @@ FROM (
   SELECT *
   FROM `{tbl_gfw_pts}`
   WHERE
-    DATE(timestamp) > DATE(new_ais_ts) AND
+    DATE(timestamp) > '{date_beg}' AND
     ST_COVERS(
       (SELECT geog
         FROM `{tbl_zones}`
@@ -72,7 +55,7 @@ LEFT JOIN `{tbl_gfw_segs}` AS segs
   ON
   segs.seg_id = ais.seg_id
 WHERE
-  DATE(timestamp) > DATE(new_ais_ts);
+  DATE(timestamp) > '{date_beg}';
 
 -- # -- Step 3: Create empty partitioned and clustered table, for GFW AIS DATA if not already existing.
 -- # -- `whalesafe_v4.ais_data` table
@@ -111,20 +94,20 @@ INSERT INTO `{tbl_ais_data}`
   FROM
   `temp_ais_data`;
 
--- # Step 6: Insert 'new_ais_ts', the new timestamp from `ais_data` BEFORE querying GFW
+-- # Step 6: Insert 'date_beg', the new timestamp from `ais_data` BEFORE querying GFW
 INSERT INTO `{tbl_log}`
 SELECT
-  new_ais_ts AS newest_timestamp,
+  '{date_beg}' AS newest_timestamp,
   CURRENT_TIMESTAMP() AS date_accessed,
   'ais_data' AS table_name,
   'query_start' AS query_exec;
 
--- # Step 7: Insert 'new_ais_ts', the new timestamp from `ais_data` AFTER querying GFW
+-- # Step 7: Insert 'date_beg', the new timestamp from `ais_data` AFTER querying GFW
 INSERT INTO `{tbl_log}`
 SELECT(
   SELECT MAX(timestamp)
   FROM `{tbl_ais_data}`
-  WHERE DATE(timestamp) > DATE_SUB(DATE(new_ais_ts), INTERVAL 3 MONTH) -- ?! INTERVAL 3 MONTH
+  WHERE DATE(timestamp) > DATE_SUB('{date_beg}', INTERVAL 3 MONTH) -- ?! INTERVAL 3 MONTH
   LIMIT 1) AS newest_timestamp,
 CURRENT_TIMESTAMP() AS date_accessed,
 'ais_data' AS table_name,
