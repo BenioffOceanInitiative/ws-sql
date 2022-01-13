@@ -12,6 +12,9 @@ import sys
 import subprocess
 import os
 
+
+  # pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
 # dates
 date_init = date(2017,  1,  1)
 date_end  = date.today()
