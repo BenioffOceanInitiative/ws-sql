@@ -1,0 +1,69 @@
+---
+title: "Canadian Dynamic Zone Email Scraper"
+output:
+  html_document:
+    code_folding: show
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning = F, message = F)
+```
+
+# Read CSV attachment from email
+
+See [Canadian zone data web scraper · Issue #1 · BenioffOceanInitiative/ws-sql](https://github.com/BenioffOceanInitiative/ws-sql/issues/1)
+
+For Canada, we only need to determine if zones are on or off, so only dynamic temporally, not spatially.
+
+```{r}
+# libraries ---
+if (!require(librarian)){
+  install.packages("librarian")
+  library(librarian)
+}
+shelf(
+  dplyr,
+  glue,
+  here,
+  purrr,
+  readr,
+  stringr)
+
+# downloaded from email attachment from notification service
+csv <- here("data/canada_dyn-mgt/NAVWARNS-AVNAVS_NW-Q-0582-21.csv")
+
+d <- read_csv(csv)
+
+d %>% 
+  select(-Description, -Position) %>% 
+  DT::datatable()
+
+cat(d$Position)
+cat(d$Description)
+```
+
+# Extract zone restrictions with regular expressions 
+
+```{r}
+zones_restrictions <- d$Description %>% 
+  str_replace(":", ".") %>%        # replace first : with period
+  str_replace_all("\\.0", "") %>%  # replace 10.0kts with 10kts
+  str_split("\\.") %>%             # get all unique sentences
+  .[[1]] %>%                       # simplify
+  str_trim() %>%                   # trim whitespace
+  str_subset(":") %>%              # get only lines with colon
+  str_split(":")
+
+d <- tibble(
+  zone        = map_chr(zones_restrictions, 1),
+  restriction = map_chr(zones_restrictions, 2) %>% 
+    str_trim())
+d %>% 
+  DT::datatable()
+
+table(d$restriction)
+```
