@@ -29,6 +29,13 @@ shelf(
 See [Canadian zone data web scraper · Issue #1 · BenioffOceanInitiative/ws-sql](https://github.com/BenioffOceanInitiative/ws-sql/issues/1)
 
 ```{r}
+# downloaded from email attachment from notification service
+csv <- here("data/canada_dyn-mgt/NAVWARNS-AVNAVS_NW-Q-0582-21.csv")
+
+d <- read_csv(csv)
+#View(d)
+#d$Url
+
 ply_geojson <- here("data/nis.ccg-gcc.gc.ca_NAVWARNs.geojson")
 ply <- geojson_sf(ply_geojson)
 ply <- sf::read_sf(ply_geojson)
