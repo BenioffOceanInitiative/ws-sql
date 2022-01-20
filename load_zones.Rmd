@@ -35,7 +35,8 @@ mapview()
 
 * [load `zones` spatially into db, including dates and other parameters (vessel, mandatory/voluntary) · Issue #8 · BenioffOceanInitiative/ws-sql](https://github.com/BenioffOceanInitiative/ws-sql/issues/8)
   - nested under `rgns`: [Create and Load Regions `rgns` for hierarchical spatial analysis · Issue #7 · BenioffOceanInitiative/ws-sql](https://github.com/BenioffOceanInitiative/ws-sql/issues/7)
-  - [slow_zone_metadata](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=0) Google Sheet
+  - [zones](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=0) Google Sheet
+  - `dir_shp`: [zones_shp - Google Drive](https://drive.google.com/drive/u/1/folders/1JRmhQEzRjoTUEsPkctUm4_x316D39E_9)
   
 
 ```{r paths-gsheet, results='asis'}
@@ -43,6 +44,8 @@ dir_shp    <- "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb
 rgns_json  <- here("data/ws-rgns.geojson")
 zones_json <- here("data/ws-zones.geojson")
 zones_csv  <- here("data/ws-zones.csv")
+redo       <- FALSE
+
 
 # [slow_zone_metadata - Google Sheets](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=0)
 zones_gsheetid <- "1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM"
@@ -61,10 +64,10 @@ gs4_auth(path = auth_json)
 #   paste(collapse = ", ") %>% 
 #   cat() # USA-West, USA-GoMex, USA-East, CAN-GoStLawrence
 
-d_zones <- read_sheet(zones_gsheetid, "zones") %>% 
-  mutate(
-    start_date = as.character(start_date),
-    end_date   = as.character(end_date)) %>% 
+d_zones <- read_sheet(zones_gsheetid, "zones_spatial") %>% 
+  # mutate(
+  #   start_date = as.character(start_date),
+  #   end_date   = as.character(end_date)) %>% 
   arrange(rgn, zone) 
 # View(d_zones)
 
@@ -72,6 +75,14 @@ hdr <- function(x, h="###"){
   cat(glue("\n\n{h} {x}\n\n"))
 }
 ```
+
+```{r}
+if (file.exists(zones_json)){
+  zones <- sf::read_sf(zones_json)
+  mapview::mapview(zones)
+} 
+```
+
 
 # Zones
 
@@ -100,21 +111,35 @@ get_sf <- function(path_shp, shp_filter){
   #browser()
   f_expr <- rlang::parse_expr(shp_filter)
   
-  read_sf(glue(path_shp)) %>% 
-    filter(!!f_expr) %>% 
-    st_transform(4326) %>%
-    st_union()
+  d <- read_sf(glue(path_shp))
+
+  if (!is.na(f_expr))
+    d <- filter(d, !!f_expr)
+    
+  # if (shp_filter == 'layer %in% c("northern_static", "southern_static")')
+  #   browser()
+  
+  if (nrow(d) > 1){
+    geom <- d %>%
+      st_union()
+  } else {
+    geom <- d %>% 
+      pull(geometry)
+  }
+  
+  geom %>% 
+    st_transform(4326)
 }
 
 # create geojson
 zones_sf <- d_zones %>% 
   filter(!is.na(path_shp)) %>% 
-  slice(4:13) %>% 
+  # slice(4:13) %>% 
   mutate(
     geometry = map2(path_shp, shp_filter, get_sf)) %>% 
   unnest(geometry) %>% 
   st_as_sf()
-
+  
 # ensure each zone is uniquely named
 stopifnot(any(!duplicated(zones_sf$zone)))
 
