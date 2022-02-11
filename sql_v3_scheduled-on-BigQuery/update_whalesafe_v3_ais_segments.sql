@@ -55,76 +55,48 @@ final_speed_bin_num INT64
 INSERT INTO `temp_ais_segments`
 SELECT
 *,
-CASE WHEN speed_knots = 0 THEN
-0
-WHEN speed_knots > 0
-AND speed_knots <= 10 THEN
-1
-WHEN speed_knots > 10
-AND speed_knots <= 12 THEN
-2
-WHEN speed_knots > 12
-AND speed_knots <= 15 THEN
-3
-WHEN speed_knots > 15
-AND speed_knots <= 50 THEN
-4
-ELSE
-5
+CASE 
+  WHEN speed_knots = 0 THEN 0
+  WHEN speed_knots > 0 AND speed_knots <= 10 THEN 1
+  WHEN speed_knots > 10 AND speed_knots <= 12 THEN 2
+  WHEN speed_knots > 12 AND speed_knots <= 15 THEN 3
+  WHEN speed_knots > 15 AND speed_knots <= 20 THEN 4
+  WHEN speed_knots > 20 AND speed_knots <= 25 THEN 5
+  WHEN speed_knots > 25 AND speed_knots <= 35 THEN 6
+  ELSE 7
 END AS speed_bin_num,
 -- Assign speed bin number for 'speed_knots'
-CASE WHEN implied_speed_knots = 0 THEN
-0
-WHEN implied_speed_knots > 0
-AND implied_speed_knots <= 10 THEN
-1
-WHEN implied_speed_knots > 10
-AND implied_speed_knots <= 12 THEN
-2
-WHEN implied_speed_knots > 12
-AND implied_speed_knots <= 15 THEN
-3
-WHEN implied_speed_knots > 15
-AND implied_speed_knots <= 50 THEN
-4
-ELSE
-5
+CASE 
+  WHEN implied_speed_knots = 0 THEN 0
+  WHEN implied_speed_knots > 0 AND implied_speed_knots <= 10 THEN 1
+  WHEN implied_speed_knots > 10 AND implied_speed_knots <= 12 THEN 2
+  WHEN implied_speed_knots > 12 AND implied_speed_knots <= 15 THEN 3
+  WHEN implied_speed_knots > 15 AND implied_speed_knots <= 20 THEN 4
+  WHEN implied_speed_knots > 20 AND implied_speed_knots <= 25 THEN 5
+  WHEN implied_speed_knots > 25 AND implied_speed_knots <= 35 THEN 6
+  ELSE 7
 END AS implied_speed_bin_num,
 -- Assign speed bin number for 'implied_speed'
-CASE WHEN calculated_knots = 0 THEN
-0
-WHEN calculated_knots > 0
-AND calculated_knots <= 10 THEN
-1
-WHEN calculated_knots > 10
-AND calculated_knots <= 12 THEN
-2
-WHEN calculated_knots > 12
-AND calculated_knots <= 15 THEN
-3
-WHEN calculated_knots > 15
-AND calculated_knots <= 50 THEN
-4
-ELSE
-5
+CASE 
+  WHEN calculated_knots = 0 THEN 0
+  WHEN calculated_knots > 0 AND calculated_knots <= 10 THEN 1
+  WHEN calculated_knots > 10 AND calculated_knots <= 12 THEN 2
+  WHEN calculated_knots > 12 AND calculated_knots <= 15 THEN 3
+  WHEN calculated_knots > 15 AND calculated_knots <= 20 THEN 4
+  WHEN calculated_knots > 20 AND calculated_knots <= 25 THEN 5
+  WHEN calculated_knots > 25 AND calculated_knots <= 35 THEN 6
+  ELSE 7
 END AS calculated_speed_bin_num,
 -- Assign speed bin number for 'calculated_knots'
-CASE WHEN final_speed_knots = 0 THEN
-0
-WHEN final_speed_knots > 0
-AND final_speed_knots <= 10 THEN
-1
-WHEN final_speed_knots > 10
-AND final_speed_knots <= 12 THEN
-2
-WHEN final_speed_knots > 12
-AND final_speed_knots <= 15 THEN
-3
-WHEN final_speed_knots > 15
-AND final_speed_knots <= 50 THEN
-4
-ELSE
-5
+CASE 
+  WHEN final_speed_knots = 0 THEN 0
+  WHEN final_speed_knots > 0 AND final_speed_knots <= 10 THEN 1
+  WHEN final_speed_knots > 10 AND final_speed_knots <= 12 THEN 2
+  WHEN final_speed_knots > 12 AND final_speed_knots <= 15 THEN 3
+  WHEN final_speed_knots > 15 AND final_speed_knots <= 20 THEN 4
+  WHEN final_speed_knots > 20 AND final_speed_knots <= 25 THEN 5
+  WHEN final_speed_knots > 25 AND final_speed_knots <= 35 THEN 6
+  ELSE 7
 END AS final_speed_bin_num
 -- # Assign speed bin number for 'final_speed_knots'.
 -- # This is the field used for aggregation in the segments_agg script
