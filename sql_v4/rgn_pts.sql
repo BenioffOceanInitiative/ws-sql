@@ -25,40 +25,40 @@
 -- than 60 seconds on a given day are eliminated.
 -- Also, all segments are thined to one position every minute.
 ---------------------------------------------------------------
--- 
+--
 -- Test spatially per rgn and date after execution with:
 --   https://bigquerygeoviz.appspot.com/
--- 
+--
 -- SELECT geog AS rgn_geog
 --   FROM `benioff-ocean-initiative.whalesafe_v4.rgns`
 --   WHERE rgn = 'USA-GoMex';
--- 
--- SELECT geog AS pt_geog 
---   FROM `benioff-ocean-initiative.whalesafe_v4.gfw_pts`
---   WHERE 
+--
+-- SELECT geog AS pt_geog
+--   FROM `benioff-ocean-initiative.whalesafe_v4.rgn_pts`
+--   WHERE
 --   	DATE(timestamp) >= DATE('2017-01-01') AND
 --   	DATE(timestamp) <= DATE('2017-02-01') AND
 -- 	rgn = 'USA-GoMex';
--- 
--- SELECT geog 
---   FROM `benioff-ocean-initiative.whalesafe_v4.gfw_pts` AS pts
+--
+-- SELECT geog
+--   FROM `benioff-ocean-initiative.whalesafe_v4.rgn_pts` AS pts
 --   WHERE
 --   	DATE(timestamp) >= DATE('2017-01-01') AND
 --   	DATE(timestamp) <= DATE('2017-02-01') AND
 --     NOT ST_COVERS(
---       (SELECT geog 
+--       (SELECT geog
 --         FROM `benioff-ocean-initiative.whalesafe_v4.rgns`
---         WHERE rgn = 'USA-GoMex'), 
+--         WHERE rgn = 'USA-GoMex'),
 --       pts.geog)
--- 
+--
 ---------------------------------------------------------------
 
 ---------------------------------------------------------------
 -- Create container for Global Fishing Watch daily data for final insert
 -- see load_regions.Rmd for creation of below with DBI::sqlCreateTable()
 ---------------------------------------------------------------
--- DROP TABLE IF EXISTS `{tbl_gfw_pts}`;
-CREATE TABLE IF NOT EXISTS `{tbl_gfw_pts}` (
+-- DROP TABLE IF EXISTS `{tbl_rgn_pts}`;
+CREATE TABLE IF NOT EXISTS `{tbl_rgn_pts}` (
   msgid STRING,
   ssvid STRING,
   seg_id STRING,
@@ -95,10 +95,10 @@ OPTIONS (
     require_partition_filter = FALSE);
 
 -- add geography points
-ALTER TABLE `{tbl_gfw_pts}` ADD COLUMN IF NOT EXISTS geog GEOGRAPHY;
+ALTER TABLE `{tbl_rgn_pts}` ADD COLUMN IF NOT EXISTS geog GEOGRAPHY;
 
 -- set description
-ALTER TABLE `{tbl_gfw_pts}`
+ALTER TABLE `{tbl_rgn_pts}`
   ALTER COLUMN `msgid` SET OPTIONS (description = "GFW: unique message id. every row in the the table has a unique msg_id"),
   ALTER COLUMN `ssvid` SET OPTIONS (description = "GFW: source specific vessel id. This is the transponder id, and for AIS this is the MMSI"),
   ALTER COLUMN `seg_id` SET OPTIONS (description = "GFW: unique segment id. This table has one row per segment id per day"),
@@ -165,13 +165,13 @@ CREATE TEMP FUNCTION distance_m(lat1 FLOAT64,
 ---------------------------------------------------------------
 -- Query
 ---------------------------------------------------------------
-DELETE FROM `{tbl_gfw_pts}`
+DELETE FROM `{tbl_rgn_pts}`
   WHERE
     DATE(timestamp) >= DATE('{date_beg}') AND
     DATE(timestamp) <= DATE('{date_end}') AND
     rgn = '{rgn}';
 
-INSERT INTO `{tbl_gfw_pts}` (msgid, ssvid, seg_id, timestamp, lat, lon, speed_knots,heading, course, meters_to_prev, implied_speed_knots,
+INSERT INTO `{tbl_rgn_pts}` (msgid, ssvid, seg_id, timestamp, lat, lon, speed_knots,heading, course, meters_to_prev, implied_speed_knots,
   hours, night,  nnet_score,  logistic_score,type,
   source, receiver_type,receiver, distance_from_sat_km, sat_altitude_km,  sat_lat,  sat_lon,
   elevation_m,  distance_from_shore_m,  distance_from_port_m, -- regions,
@@ -205,7 +205,7 @@ WITH
       -- regions
     FROM
       `{tbl_gfw_messages_scored}*`
-    WHERE 
+    WHERE
       _TABLE_SUFFIX >= YYYYMMDD( begDAY() ) AND
       _TABLE_SUFFIX <= YYYYMMDD( endDAY() )
     AND source = 'spire'
@@ -217,7 +217,7 @@ WITH
           receiver
         FROM
           `{tbl_gfw_research_satellite_timing}`
-        WHERE 
+        WHERE
             DATE(_partitiontime) >= DATE('{date_beg}') AND
             DATE(_partitiontime) <= DATE('{date_end}') AND
             ABS(dt) > 60
@@ -244,8 +244,8 @@ WITH
       lon
     FROM
       `{tbl_gfw_messages_scored}*`
-      WHERE 
-      _TABLE_SUFFIX = YYYYMMDD( priorDAY() ) AND 
+      WHERE
+      _TABLE_SUFFIX = YYYYMMDD( priorDAY() ) AND
       (receiver is null -- receiver is null is important,
                             -- otherwise null spire positions are ignored
         -- OR receiver in ('rORBCOMM000','rORBCOMM999') -- exclude ORBCOM
@@ -519,8 +519,8 @@ WHERE
   DATE(timestamp) <= DATE('{date_end}') AND
   -- NEW: limit to points falling inside given rgn
   ST_COVERS(
-    (SELECT geog 
+    (SELECT geog
       FROM `{tbl_rgns}`
-      WHERE rgn = '{rgn}'), 
+      WHERE rgn = '{rgn}'),
     ST_GEOGPOINT(lon, lat))
 ;

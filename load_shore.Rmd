@@ -15,6 +15,8 @@ knitr::opts_chunk$set(echo = TRUE)
 librarian::shelf(
   dplyr, glue, here, lwgeom, purrr, sf, stringr, tibble)
 source(here("scripts/db.R"))
+
+bq_tbl_shore <- "benioff-ocean-initiative.whalesafe_v4.shore"
 ```
 
 
@@ -70,7 +72,6 @@ write_sf(x, here("data/shore.geojson"), delete_dsn=T)
 # vars
 shore_geo    <- "/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/shoreline/shore.geojson"
 shore_geo    <- "/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/shoreline/shore.gpkg"
-bq_tbl_shore <- "benioff-ocean-initiative.whalesafe_v4.shore"
 update_shore <- F
 
 bq_ds  <- str_replace(bq_tbl_shore, "([^.]+)\\.([^.]+)\\.([^.]+)", "\\1.\\2")
@@ -112,7 +113,8 @@ if (!bq_table_exists(bq_tbl_shore) | update_shore){
 }
 ```
 
-```{r, eval=F}
+```{r read shore_bq, eval=F}
 shore_bq <- bq_table_download(bq_tbl_shore) %>%
   st_as_sf(wkt = "geog", crs = 4326)
+mapview::mapview(shore_bq)
 ```

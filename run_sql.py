@@ -52,14 +52,14 @@ tbl_gfw_static_norad_to_receiver                  = "world-fishing-827.pipe_stat
 tbl_gfw_satellite_positions_one_second_resolution = "world-fishing-827.satellite_positions_v20190208.satellite_positions_one_second_resolution_"
 
 tbl_gfw_segs = "world-fishing-827.gfw_research.pipe_v20201001_segs"
-tbl_gfw_pts  = "benioff-ocean-initiative.whalesafe_v4.gfw_pts"
+tbl_rgn_pts  = "benioff-ocean-initiative.whalesafe_v4.rgn_pts"
 tbl_rgns     = "benioff-ocean-initiative.whalesafe_v4.rgns"
 tbl_zones    = "benioff-ocean-initiative.whalesafe_v4.zones"
 tbl_ais_data = "benioff-ocean-initiative.whalesafe_v4.ais_data"
 tbl_log      = "benioff-ocean-initiative.whalesafe_v4.timestamp_log"
 
-#path_gfw_pts_sql  = "sql_v4/gfw_pts.sql"
-path_gfw_pts_sql      = "sql_v4/gfw_pts.sql"
+#path_rgn_pts_sql  = "sql_v4/rgn_pts.sql"
+path_rgn_pts_sql      = "sql_v4/rgn_pts.sql"
 path_ais_data_sql     = "sql_v4/ais_data.sql"
 path_ais_segments_sql = "sql_v4/ais_segments.sql"
 
@@ -122,7 +122,7 @@ df_zones_dates   = get_sheet("zones_dates")
 # delta = date_end - date_beg
 # n_days = delta.days + 1 # 132 days
 
-# gets regions with last fetched date from GFW data, based on {tbl_gfw_pts}
+# gets regions with last fetched date from GFW data, based on {tbl_rgn_pts}
 df_rgns = bq_client.query(f"""
   SELECT r.*, date_max FROM 
   ((SELECT rgn, ST_Extent(geog) AS bbox 
@@ -130,7 +130,7 @@ df_rgns = bq_client.query(f"""
    GROUP BY rgn) r
   LEFT JOIN
     (SELECT rgn, MAX(DATE(timestamp)) AS date_max
-     FROM `{tbl_gfw_pts}` 
+     FROM `{tbl_rgn_pts}` 
      GROUP BY rgn) p ON r.rgn = p.rgn)
   ORDER BY rgn
   """).to_dataframe()
@@ -157,11 +157,11 @@ for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.loc[i_rgn,]
   xmin, xmax, ymin, ymax = [row['bbox'][key] for key in ['xmin', 'xmax', 'ymin', 'ymax']]
   date_beg = row['date_max']
 
-  # gfw_pts.sql
-  job_pfx = f'gfw_pts_{rgn}_{date_beg}_{date_end}_'
+  # rgn_pts.sql
+  job_pfx = f'rgn_pts_{rgn}_{date_beg}_{date_end}_'
   msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql = sql_fmt(path_gfw_pts_sql) # print(sql)
-  # f = open(f'{path_gfw_pts_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
+  sql = sql_fmt(path_rgn_pts_sql) # print(sql)
+  # f = open(f'{path_rgn_pts_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
   # f.write(sql); f.close()
   job = bq_client.query(sql, job_id_prefix = job_pfx)
   result = job.result() # uncomment to run
@@ -171,8 +171,8 @@ for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.loc[i_rgn,]
   # # - load zones first
   # job_pfx = f'ais_data_{rgn}_{date_beg}_{date_end}_'
   # msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  # sql = sql_fmt(path_gfw_pts_sql)
-  # # f = open(f'{path_gfw_pts_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
+  # sql = sql_fmt(path_rgn_pts_sql)
+  # # f = open(f'{path_rgn_pts_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
   # # f.write(sql); f.close()
   # job = bq_client.query(sql, job_id_prefix = job_pfx)
   # # result = job.result() # uncomment to run
@@ -225,31 +225,31 @@ print(f"Last {n_jobs} jobs:\n              begin |                 end | status 
 for job in bq_client.list_jobs(max_results=n_jobs):  # API request(s)
   print(f"{job.created:%Y-%m-%d %H:%M:%S} | {job.state} | {job.job_id}") # " | {job.exception()}")
 
-# get summary of regions in gfw_pts
+# get summary of regions in rgn_pts
 sql = "SELECT rgn, \
   MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp, \
   MIN(lon) AS min_lon, MAX(lon) AS max_lon, \
   MIN(lat) AS min_lat, MAX(lat) AS max_lat, \
   COUNT(*) AS cnt \
-  FROM whalesafe_v4.gfw_pts \
+  FROM whalesafe_v4.rgn_pts \
   GROUP BY rgn"
-job = bq_client.query(sql, job_id_prefix = 'SUMMARIZE_gfw_pts_RGN_')
+job = bq_client.query(sql, job_id_prefix = 'SUMMARIZE_rgn_pts_RGN_')
 result = job.result() # uncomment to run
-job.to_dataframe().to_csv("data/gfw_pts_summary.csv")
+job.to_dataframe().to_csv("data/rgn_pts_summary.csv")
 
 # jobs meta: careful BIG (284 MB) last time and not restricted by date
 sql = "SELECT * FROM `benioff-ocean-initiative`.`region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT \
-  -- WHERE STARTS_WITH(job_id, 'gfw_pts_') \
+  -- WHERE STARTS_WITH(job_id, 'rgn_pts_') \
   WHERE DATE(creation_time) = DATE('2021-11-12') \
   ORDER BY creation_time"
-job = bq_client.query(sql, job_id_prefix = "JOBS_gfw_pts_")
+job = bq_client.query(sql, job_id_prefix = "JOBS_rgn_pts_")
 result = job.result() # uncomment to run
-job.to_dataframe().to_csv("data/gfw_pts_jobs.csv")
+job.to_dataframe().to_csv("data/rgn_pts_jobs.csv")
 
 # job
 sql = "SELECT state, total_bytes_processed, error_result FROM `benioff-ocean-initiative`.`region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT \
-  WHERE job_id = 'gfw_pts_USA-East_2017-01-01_2021-11-12_016cfdf0-dce7-4289-9c21-d4f0ecaef3fd'"
-job = bq_client.query(sql, job_id_prefix = "JOBS_gfw_pts_")
+  WHERE job_id = 'rgn_pts_USA-East_2017-01-01_2021-11-12_016cfdf0-dce7-4289-9c21-d4f0ecaef3fd'"
+job = bq_client.query(sql, job_id_prefix = "JOBS_rgn_pts_")
 result = job.result() # uncomment to run
 job.to_dataframe()
 
