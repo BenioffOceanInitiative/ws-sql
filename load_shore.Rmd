@@ -1,0 +1,118 @@
+---
+title: "load_shoreline"
+author: "Ben Best"
+date: "2/10/2022"
+output: html_document
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+librarian::shelf(
+  dplyr, glue, here, lwgeom, purrr, sf, stringr, tibble)
+source(here("scripts/db.R"))
+```
+
+
+## Create Shoreline
+
+Sources:
+* [GSHHG - A Global Self-consistent, Hierarchical, High-resolution Geography Database](https://www.soest.hawaii.edu/pwessel/gshhg/)
+
+```{r}
+shore_shp   <- "/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/shoreline/gshhg-shp-2.3.7/GSHHS_shp/f/GSHHS_f_L1.shp"
+rgns_geo  <- here("data/ws-rgns.geojson")
+bb_geo    <- here("data/ws-bbox.geojson")
+shore_geo <- here("data/shore.geojson")
+
+rgns  <- read_sf(rgns_geo)
+shore <- read_sf(shore_shp)
+
+# make bounding box from whalesafe regions and buffer by 2 degrees
+bb <- st_bbox(st_buffer(rgns, 2)) %>%
+  st_as_sfc() %>% st_make_valid()
+write_sf(bb, bb_geo)
+
+# x <- st_intersection(shore, bb)
+# Error in s2_geography_from_wkb(x, oriented = oriented, check = check) :
+#   Evaluation error: Found 1 feature with invalid spherical geometry.
+# [2245] Loop 0 edge 746 has duplicate near loop 1 edge 4.
+# https://stackoverflow.com/questions/68478179/how-to-resolve-spherical-geometry-failures-when-joining-spatial-data
+# sf::sf_use_s2(F)
+
+# had to run st_make_valid() twice to remove invalid geoms
+shore <- st_make_valid(shore) %>% st_make_valid()
+
+write_sf(shore, here("data/shore_valid.geojson"))
+write_sf(shore, here("data/shore/shore_v.shp"))
+
+stopifnot(sum(!st_is_valid(shore)) == 0)
+x <- st_intersection(shore, bb)
+# x$geometry <- x$geometry %>% s2::s2_rebuild() %>% st_as_sf()
+# sf::sf_use_s2(T)
+stopifnot(sum(!st_is_valid(x)))
+
+# whoah! crazy slow
+# y <- st_union(x)
+
+write_sf(x, here("data/shore.geojson"), delete_dsn=T)
+# manual: used QGIS to dissolve into single polygon # 22.2 -> 20 MB
+# alternative: system('ogr2ogr output_dissolved.shp input.shp -dialect sqlite -sql "SELECT ST_Union(geometry) AS geometry FROM input"')
+```
+
+## Upload to BigQuery DB
+
+```{r}
+# vars
+shore_geo    <- "/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/shoreline/shore.geojson"
+shore_geo    <- "/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/shoreline/shore.gpkg"
+bq_tbl_shore <- "benioff-ocean-initiative.whalesafe_v4.shore"
+update_shore <- F
+
+bq_ds  <- str_replace(bq_tbl_shore, "([^.]+)\\.([^.]+)\\.([^.]+)", "\\1.\\2")
+
+if (!bq_dataset_exists(bq_ds))
+  bq_dataset_create(bq_ds)
+
+if (!bq_table_exists(bq_tbl_shore) | update_shore){
+
+  shore <- read_sf(shore_geo)
+  shore_wkt <- shore %>%
+    mutate(
+      wkt = st_as_text(geom)) %>%
+    st_drop_geometry()
+
+  if (bq_table_exists(bq_tbl_shore)){
+    bq_table_delete(bq_tbl_shore)
+  }
+
+  # create the table schema
+  bq_shore <- bq_table_create(
+    bq_tbl_shore,
+    shore_wkt,
+    friendly_name = "shore, from GSHHS clipped to WhaleSafe bounding box buffered by 2 degrees",
+    description   = "Created by:
+        https://github.com/BenioffOceanInitiative/ws-sql/blob/main/load_shore.Rmd",
+    labels = list(category = "spatial"))
+
+  # upload the table contents
+  bq_table_upload(bq_tbl_shore, shore_wkt)
+
+  # create and update Geography column from well-known text (wkt)
+  bq_dataset_query(
+    bq_ds,
+    glue(
+      "ALTER TABLE {bq_tbl_shore} ADD COLUMN IF NOT EXISTS geog GEOGRAPHY;
+       UPDATE {bq_tbl_shore} SET geog = ST_GEOGFROMTEXT(wkt) WHERE TRUE;
+       ALTER TABLE {bq_tbl_shore} DROP COLUMN IF EXISTS wkt"))
+}
+```
+
+```{r, eval=F}
+shore_bq <- bq_table_download(bq_tbl_shore) %>%
+  st_as_sf(wkt = "geog", crs = 4326)
+```

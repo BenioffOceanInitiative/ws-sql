@@ -11,7 +11,9 @@ from googleapiclient.errors import HttpError
 
 # If modifying these scopes, delete the file token.json.
 #SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly', 'https://www.googleapis.com/auth/drive'] # 'https://spreadsheets.google.com/feeds',
+SCOPES = [
+    'https://www.googleapis.com/auth/spreadsheets.readonly', 
+    'https://www.googleapis.com/auth/drive'] # 'https://spreadsheets.google.com/feeds',
 
 # Google Sheet
 # [zones - Google Sheets](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=423793051)
@@ -37,7 +39,7 @@ def main():
     if os.path.exists(CREDENTIALS_JSON):
         creds = ServiceAccountCredentials.from_json_keyfile_dict(SHEETS_KEY, SCOPES)
     # If there are no (valid) credentials available, let the user log in.
-    if not creds or not creds.valid:
+    if not creds or creds.invalid:
         sys.exit("CREDENTIALS_JSON not found:" + CREDENTIALS_JSON)
     #     if creds and creds.expired and creds.refresh_token:
     #         creds.refresh(Request())

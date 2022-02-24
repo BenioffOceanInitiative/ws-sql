@@ -1,25 +1,25 @@
--- -- # -- # Updating `whalesafe_v3.ais_segments` -- # --
--- -- # Benioff Ocean Initiative: 2021-01-20
+-- # Updating `whalesafe_v4.ais_segments`
+-- # Benioff Ocean Initiative: 2022-02-10
 
--- -- # --  # Step 0:
--- -- # --  # IF STARTING FROM SCRATCH, USE FIRST DECLARE STATEMENT & COMMENT THE SECOND DECLARE STATEMENT BELOW:
+-- # Step 0:
+-- # IF STARTING FROM SCRATCH, USE FIRST DECLARE STATEMENT & COMMENT THE SECOND DECLARE STATEMENT BELOW:
 
--- -- DECLARE
--- -- new_seg_ts DEFAULT(
--- -- SELECT
--- -- SAFE_CAST ('1990-01-01 00:00:00' AS TIMESTAMP));
+-- DECLARE
+-- new_seg_ts DEFAULT(
+-- SELECT
+-- SAFE_CAST ('1990-01-01 00:00:00' AS TIMESTAMP));
 
--- -- -- -- # -- # Step 1: If UPDATING `whalesafe_v3.ais_segments`, DECLARE THE NEWEST timestamp AS new_seg_ts (USE BELOW)
-DECLARE
-	new_seg_ts DEFAULT(
-		SELECT
-			MAX(timestamp_end)
-			FROM `whalesafe_v3.ais_segments`
-		WHERE
-			DATE(timestamp) > DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH)
-		LIMIT 1);
+-- # Step 1: If UPDATING `whalesafe_v3.ais_segments`, DECLARE THE NEWEST timestamp AS new_seg_ts (USE BELOW)
+-- DECLARE
+-- 	new_seg_ts DEFAULT(
+-- 		SELECT
+-- 			MAX(timestamp_end)
+-- 			FROM `whalesafe_v4.ais_segments`
+-- 		WHERE
+-- 			DATE(timestamp) > DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH)
+-- 		LIMIT 1);
 
--- -- -- # -- # Step 2: Create temporary table to hold new segments data
+-- # Step 2: Create temporary table to hold new segments data
 CREATE TEMPORARY TABLE `temp_ais_segments` (
 timestamp TIMESTAMP,
 date DATE,
@@ -44,14 +44,14 @@ gt NUMERIC,
 point GEOGRAPHY,
 linestring GEOGRAPHY,
 final_speed_knots NUMERIC,
-touches_coast BOOL,
+-- touches_coast BOOL,
 speed_bin_num INT64,
 implied_speed_bin_num INT64,
 calculated_speed_bin_num INT64,
 final_speed_bin_num INT64
 );
 
--- -- -- # --  # Step 3: Query `whalesafe_v3.ais_data` and insert the constructed vessel segments into the temporary table
+-- # Step 3: Query `whalesafe_v3.ais_data` and insert the constructed vessel segments into the temporary table
 INSERT INTO `temp_ais_segments`
 SELECT
 *,
@@ -131,23 +131,22 @@ END AS final_speed_bin_num
 FROM (
 SELECT
 *,
-ROUND((CASE WHEN
-speed_knots BETWEEN 0.001 AND 50 THEN
-speed_knots
-WHEN calculated_knots BETWEEN 0.001 AND 50 THEN
-calculated_knots
-WHEN implied_speed_knots BETWEEN 0.001 AND 50 THEN
-implied_speed_knots
-ELSE
-NULL
-END),3) AS final_speed_knots,
-CASE WHEN
-ST_INTERSECTS(linestring, (SELECT ST_UNION_AGG(geom) FROM ((SELECT * FROM `whalesafe_v3.cali_us_coast_medium`))))
-THEN
-TRUE
-ELSE
-FALSE
-END AS touches_coast
+ROUND((CASE 
+	WHEN speed_knots BETWEEN 0.001 AND 50 THEN speed_knots
+	WHEN calculated_knots BETWEEN 0.001 AND 50 THEN calculated_knots
+	WHEN implied_speed_knots BETWEEN 0.001 AND 50 THEN implied_speed_knots
+	ELSE
+	NULL
+	END),3) AS final_speed_knots,
+-- CASE WHEN
+-- 	-- # intersects CA coast
+-- 	ST_INTERSECTS(
+-- 		linestring, 
+-- 		(SELECT ST_UNION_AGG(geom) FROM ((
+-- 			SELECT * FROM `whalesafe_v3.cali_us_coast_medium`))))
+-- 	THEN TRUE
+-- 	ELSE FALSE
+-- END AS touches_coast
 -- # When linestring INTERSECTS a DISSOLVED US California coastline feature, touches_coast IS TRUE, ELSE touches_coast IS FALSE.
 -- # FLAGS linestrings that intersect coastline, mostly around ports.
 -- # TODO: GET BETTER/MORE DETAILED POLYGON FOR PORTS AND COASTLINES.

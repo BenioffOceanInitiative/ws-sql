@@ -97,7 +97,7 @@ INSERT INTO `{tbl_ais_data}`
 -- # Step 6: Insert 'date_beg', the new timestamp from `ais_data` BEFORE querying GFW
 INSERT INTO `{tbl_log}`
 SELECT
-  '{date_beg}' AS newest_timestamp,
+  TIMESTAMP('{date_beg} 00:00:00 UTC') AS newest_timestamp,
   CURRENT_TIMESTAMP() AS date_accessed,
   'ais_data' AS table_name,
   'query_start' AS query_exec;

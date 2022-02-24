@@ -11,9 +11,26 @@ import time
 import sys
 import subprocess
 import os
+from __future__ import print_function
+import json
+from google.auth.transport.requests import Request
+#from google.oauth2.credentials import Credentials
+from oauth2client.service_account import ServiceAccountCredentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+# pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
 
-
-  # pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+# googlesheet variables
+# TODO: spreadsheets read AND WRITE for zone_dates
+SCOPES = [
+    'https://www.googleapis.com/auth/spreadsheets.readonly', 
+    'https://www.googleapis.com/auth/drive'] # 'https://spreadsheets.google.com/feeds',
+# [zones - Google Sheets](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=423793051)
+SPREADSHEET_ID = '1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM'
+CREDENTIALS_JSON = '/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/benioff-ocean-initiative-0b09860e2d00.json'
+# lgnd-website-service-account: https://console.cloud.google.com/iam-admin/serviceaccounts/details/114569616080626900590;edit=true?previousPage=%2Fapis%2Fcredentials%3Fproject%3Dbenioff-ocean-initiative%26authuser%3D1&authuser=1&project=benioff-ocean-initiative
+# shared Gsheet with ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com as Editor
 
 # dates
 date_init = date(2017,  1,  1)
@@ -51,15 +68,61 @@ def msg(txt):
   print(txt + " ~ " + datetime.now(tz.gettz('America/Los_Angeles')).strftime('%Y-%m-%d %H:%M:%S PDT'))
   sys.stdout.flush()
 
+# function to replace variables in the SQL scripts
 def sql_fmt(f):
   if os.path.exists(f):
     return(open(f, "r").read().format(**dict(globals(), **locals())))
   else:
     return(f.format(**dict(globals(), **locals())))
 
-delta = date_end - date_beg
-n_days = delta.days + 1 # 132 days
+def get_sheet(RANGE_NAME = "zones_spatial", SPREADSHEET_ID=SPREADSHEET_ID, CREDENTIALS_JSON=CREDENTIALS_JSON):
+    """Shows basic usage of the Sheets API.
+    Prints values from a sample spreadsheet.
+    """
+    creds = None
 
+    with open(CREDENTIALS_JSON, 'r') as file:
+      CREDENTIALS_STR= file.read().replace('\n', '')
+    SHEETS_KEY = json.loads(CREDENTIALS_STR)
+    
+    # The file token.json stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    if os.path.exists(CREDENTIALS_JSON):
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(SHEETS_KEY, SCOPES)
+    if not creds or creds.invalid:
+        sys.exit("CREDENTIALS_JSON not found or invalid:" + CREDENTIALS_JSON)
+    try:
+      service = build('sheets', 'v4', credentials=creds)
+      
+      # Call the Sheets API
+      sheet = service.spreadsheets()
+      # RANGE_NAME = 'zone_dates'
+      result = sheet.values().get(
+        spreadsheetId=SPREADSHEET_ID,
+        range=RANGE_NAME).execute()
+      values = result.get('values', [])
+      
+      if not values:
+        print('No data found.')
+        return()
+      else:
+        df = pd.DataFrame(values)
+        fld_names = df.iloc[0] # grab the first row for the header
+        df = df[1:]            # take the data less the header row
+        df.columns = fld_names # set the header row as the df header
+        return df
+      
+    except HttpError as err:
+      print(err)
+
+df_zones_spatial = get_sheet("zones_spatial")
+df_zones_dates   = get_sheet("zones_dates")
+
+# delta = date_end - date_beg
+# n_days = delta.days + 1 # 132 days
+
+# gets regions with last fetched date from GFW data, based on {tbl_gfw_pts}
 df_rgns = bq_client.query(f"""
   SELECT r.*, date_max FROM 
   ((SELECT rgn, ST_Extent(geog) AS bbox 
@@ -73,6 +136,7 @@ df_rgns = bq_client.query(f"""
   """).to_dataframe()
 n_rgns = df_rgns.shape[0]
 
+# get zones with last analyzed date, based on {tbl_ais_data}
 df_zones = bq_client.query(f"""
   SELECT z.*, date_max FROM 
   ((SELECT * EXCEPT (geog) 
@@ -80,7 +144,7 @@ df_zones = bq_client.query(f"""
    LEFT JOIN
     (SELECT zone, (MAX(DATE(TIMESTAMP))) AS date_max 
      FROM `{tbl_ais_data}`
-     WHERE DATE(TIMESTAMP) >= '2017-01-01'
+     WHERE DATE(TIMESTAMP) >= '{date_init}'
      GROUP BY zone) a ON z.zone = a.zone)
   ORDER BY rgn, zone
   """).to_dataframe()
@@ -133,41 +197,21 @@ for i_zone,row in df_zones.iterrows(): # i_zone = 0; row = df_zones.loc[i_zone,]
   if date_beg == None:
     date_beg = date_init
 
+  d_zone_spatial = df_zones_spatial[df_zones_spatial["zone"] == zone]
+  d_zone_dates   = df_zones_dates[df_zones_dates["zone"] == zone]
+  
   job_pfx = f'ais_data_{rgn}_{zone}_{date_beg}_{date_end}_'
   msg(f'{i_zone+1} of {n_zones}: region_zone {rgn}_{zone}: {job_pfx}')
   sql = sql_fmt(path_ais_data_sql) # print(sql)
   job = bq_client.query(sql, job_id_prefix = job_pfx)
-  # result = job.result() # uncomment to run
-  
-  # DEBUG Query error: Scalar subquery produced more than one element at [44:1]
-  sql = sql_fmt("""
-    DECLARE new_ais_ts DEFAULT (SELECT SAFE_CAST('2016-12-31 12:59:59 UTC' AS TIMESTAMP));
-    SELECT *
-      FROM `{tbl_gfw_pts}`
-      WHERE
-        DATE(timestamp) > DATE(new_ais_ts) AND
-        ST_COVERS(
-          (SELECT geog
-            FROM `{tbl_zones}`
-            WHERE zone = '{zone}'),
-          geog)""")
-    print(sql)
-  sql = sql_fmt("""
-    SELECT rgn, zone
-      FROM `{tbl_zones}`
-      WHERE zone = '{zone}'""")
-    print(sql)
-  job = bq_client.query(sql, job_id_prefix = job_pfx)
-  job.to_dataframe()
   result = job.result() # uncomment to run
-
 
 # TODO: ais_segments_sql.sql 
   # - by rgn/zone or all at once?
   # - load zones first
   job_pfx = f'ais_segments_{rgn}_{date_beg}_{date_end}_'
   msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql = sql_fmt(path_ais_segments_sql)
+  sql = sql_fmt(path_ais_segments_sql) # print(sql)
   # f = open(f'{path_ais_segments_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
   # f.write(sql); f.close()
   job = bq_client.query(sql, job_id_prefix = job_pfx)
