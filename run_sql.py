@@ -1,3 +1,11 @@
+# prerequisites: Ben on Mac
+# - [Visual Studio Code](https://code.visualstudio.com/download)
+# - [homebrew](https://brew.sh)
+# - [Postgres app for Mac](https://postgresapp.com/downloads.html)
+# vi ~/.zprofile
+#   PATH=$PATH:/Users/bbest/Library/Python/3.8/bin:/Applications/Postgres.app/Contents/Versions/latest/bin
+# /usr/bin/pip3 install --upgrade pandas google-cloud-bigquery sqlalchemy psycopg2 oauth2client google-auth-httplib2 google-auth-oauthlib google-api-python-client
+
 # modules
 import pandas as pd
 from google.cloud  import bigquery
@@ -19,7 +27,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-# pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
 
 # googlesheet variables
 # TODO: spreadsheets read AND WRITE for zone_dates
@@ -28,7 +35,7 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive'] # 'https://spreadsheets.google.com/feeds',
 # [zones - Google Sheets](https://docs.google.com/spreadsheets/d/1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM/edit#gid=423793051)
 SPREADSHEET_ID = '1DnE1RY7exhRzc-e3kd8sX9HKRbjEvBHS4aZFXFLupeM'
-CREDENTIALS_JSON = '/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/benioff-ocean-initiative-0b09860e2d00.json'
+CREDENTIALS_JSON = '/Volumes/GoogleDrive/My Drive/projects/whalesafe/data/benioff-ocean-initiative-0b09860e2d00.json'
 # lgnd-website-service-account: https://console.cloud.google.com/iam-admin/serviceaccounts/details/114569616080626900590;edit=true?previousPage=%2Fapis%2Fcredentials%3Fproject%3Dbenioff-ocean-initiative%26authuser%3D1&authuser=1&project=benioff-ocean-initiative
 # shared Gsheet with ships4whales@benioff-ocean-initiative.iam.gserviceaccount.com as Editor
 
