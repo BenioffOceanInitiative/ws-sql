@@ -1,6 +1,6 @@
 --# OLD: [ais_segments.sql](https://github.com/BenioffOceanInitiative/ws-sql/blob/2bb89c2c96cf199b9e93d63fd54742f020c2c5a0/sql_v4/ais_segments.sql)
 
-# create table if needed
+--# create table if needed
 CREATE TABLE IF NOT EXISTS `{tbl_rgn_segs}` (
   timestamp TIMESTAMP,
   date DATE,
@@ -37,6 +37,7 @@ DELETE FROM `{tbl_rgn_segs}`
     rgn = '{rgn}';
 
 --# construct vessel segments from {tbl_rgn_pts}
+INSERT INTO `{tbl_rgn_segs}`
 SELECT
   timestamp,
   DATE(timestamp) AS date,

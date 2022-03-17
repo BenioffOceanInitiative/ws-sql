@@ -7,13 +7,9 @@ Sequence of scripts, originally based on [Scheduled queries – BigQuery – Ben
   `rgn_pts.sql`: GFW -> `rgn_pts`
 1. `ais_segments.sql`: make segments from points\
   `rgn_segs.sql`: `rgn_pts` -> `rgn_segs`
-1. `ais_segments.sql`: apply filter based on min_ship_length_m & min_ship_weight_gt\
-  `rgn_segs_filt.sql`: `rgn_segs` -> `rgn_segs.is_included` = TRUE/FALSE (NA if filter not yet applied)
-1. `ais_segments.sql`: applies per segment statistics, 
-      eg `speed_bin_knots` with value in hist format: 
-      [0,5), [5,10) ("[" is inclusive of, ")" is less than and not inclusive)\
-  `rgn_segs_stats.sql`: `rgn_segs` -> `rgn_segs.*`
+  `rgn_segs_speedbins.sql`: `rgn_segs.speedbin*`
 
+  
 ## Per Zone
 1. `ais_data.sql`: subset regional segments into zone\
    `ais_segments.sql`: make segments from points\

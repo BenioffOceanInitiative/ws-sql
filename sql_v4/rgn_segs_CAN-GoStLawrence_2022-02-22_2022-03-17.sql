@@ -32,12 +32,11 @@ OPTIONS (
 --# delete for given region and dates
 DELETE FROM `benioff-ocean-initiative.whalesafe_v4.rgn_segs`
   WHERE
-    DATE(timestamp) >= DATE('2017-01-01') AND
-    DATE(timestamp) <= DATE('2017-03-01') AND
+    DATE(timestamp) >= DATE('2022-02-22') AND
+    DATE(timestamp) <= DATE('2022-03-17') AND
     rgn = 'CAN-GoStLawrence';
 
 --# construct vessel segments from benioff-ocean-initiative.whalesafe_v4.rgn_pts
-INSERT INTO `benioff-ocean-initiative.whalesafe_v4.rgn_segs`
 SELECT
   timestamp,
   DATE(timestamp) AS date,
@@ -153,8 +152,8 @@ FROM (
         FROM
           `benioff-ocean-initiative.whalesafe_v4.rgn_pts`
         WHERE
-          DATE(timestamp) >= DATE('2017-01-01') AND
-          DATE(timestamp) <= DATE('2017-03-01') AND
+          DATE(timestamp) >= DATE('2022-02-22') AND
+          DATE(timestamp) <= DATE('2022-03-17') AND
           rgn = 'CAN-GoStLawrence' AND
           --AND good_seg IS TRUE
           speed_knots         > 0.001 AND 

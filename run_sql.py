@@ -4,9 +4,10 @@
 # - [Postgres app for Mac](https://postgresapp.com/downloads.html)
 # vi ~/.zprofile
 #   PATH=$PATH:/Users/bbest/Library/Python/3.8/bin:/Applications/Postgres.app/Contents/Versions/latest/bin
-# /opt/homebrew/bin/pip3 install --upgrade pandas google-cloud-bigquery pyarrow sqlalchemy psycopg2 python-dateutil oauth2client google-auth-httplib2 google-auth-oauthlib google-api-python-client
+# pip install --upgrade pandas google-cloud-bigquery pyarrow sqlalchemy psycopg2-binary python-dateutil oauth2client google-auth-httplib2 google-auth-oauthlib google-api-python-client
 
 # modules
+from __future__ import print_function
 import pandas as pd
 from google.cloud  import bigquery
 from google.oauth2 import service_account
@@ -19,7 +20,6 @@ import time
 import sys
 import subprocess
 import os
-from __future__ import print_function
 import json
 from google.auth.transport.requests import Request
 #from google.oauth2.credentials import Credentials
@@ -65,7 +65,7 @@ tbl_rgn_segs = "benioff-ocean-initiative.whalesafe_v4.rgn_segs"
 tbl_shore    = "benioff-ocean-initiative.whalesafe_v4.shore"
 tbl_rgns     = "benioff-ocean-initiative.whalesafe_v4.rgns"
 tbl_zones    = "benioff-ocean-initiative.whalesafe_v4.zones"
-tbl_ais_data = "benioff-ocean-initiative.whalesafe_v4.ais_data" # TODO: rename to zone_pts?
+#tbl_ais_data = "benioff-ocean-initiative.whalesafe_v4.ais_data" # TODO: rename to zone_pts?
 tbl_log      = "benioff-ocean-initiative.whalesafe_v4.timestamp_log"
 
 # path_rgn_pts_sql      = "sql_v4/rgn_pts.sql"
@@ -143,18 +143,33 @@ df_rgns = bq_client.query(f"""
 n_rgns = df_rgns.shape[0]
 
 # get zones with last analyzed date, based on {tbl_ais_data}
-df_zones = bq_client.query(f"""
-  SELECT z.*, date_max FROM 
-  ((SELECT * EXCEPT (geog) 
-    FROM {tbl_zones} ORDER BY rgn, zone) z
-   LEFT JOIN
-    (SELECT zone, (MAX(DATE(TIMESTAMP))) AS date_max 
-     FROM `{tbl_ais_data}`
-     WHERE DATE(TIMESTAMP) >= '{date_init}'
-     GROUP BY zone) a ON z.zone = a.zone)
-  ORDER BY rgn, zone
-  """).to_dataframe()
-n_zones = df_zones.shape[0]
+# df_zones = bq_client.query(f"""
+#   SELECT z.*, date_max FROM 
+#   ((SELECT * EXCEPT (geog) 
+#     FROM {tbl_zones} ORDER BY rgn, zone) z
+#    LEFT JOIN
+#     (SELECT zone, (MAX(DATE(TIMESTAMP))) AS date_max 
+#      FROM `{tbl_ais_data}`
+#      WHERE DATE(TIMESTAMP) >= '{date_init}'
+#      GROUP BY zone) a ON z.zone = a.zone)
+#   ORDER BY rgn, zone
+#   """).to_dataframe()
+# n_zones = df_zones.shape[0]
+
+# get speedbins
+df_speedbins = df_speedbins[df_speedbins['version']=='v2']
+fld = 'implied_speed_knots'
+
+def get_speedbin_sql(df, fld):
+  whens = df.apply(
+    lambda x: 
+      f"    WHEN {fld} > {x['speed_min']} AND {fld} <= {x['speed_max']} THEN '{x['speedbin']}'",
+      axis=1).str.cat(sep='\n')
+  sql = ('\n'
+     '  CASE\n'
+    f'{whens}\n'
+    f'  END\n')
+  return(sql)
 
 msg(f'Iterating over {n_rgns} regions')
 
@@ -174,7 +189,7 @@ for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.loc[i_rgn,]
 
   # rgn_segs
   # date_beg = date(2017,  1,  1); date_end = date(2017,  3,  1)
-  job_pfx = f'ais_data_{rgn}_{date_beg}_{date_end}_'
+  job_pfx = f'rgn_segs_{rgn}_{date_beg}_{date_end}_'
   msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
   sql = sql_fmt('sql_v4/rgn_segs.sql')
   f = open(f'sql_v4/rgn_segs_{rgn}_{date_beg}_{date_end}.sql', 'w')
@@ -182,16 +197,27 @@ for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.loc[i_rgn,]
   job = bq_client.query(sql, job_id_prefix = job_pfx)
   result = job.result() # uncomment to run
 
-  # # TODO: ais_segments_sql.sql for regions? or just zones? 
-  # # - by rgn/zone or all at once?
-  # # - load zones first
-  # job_pfx = f'ais_segments_{rgn}_{date_beg}_{date_end}_'
-  # msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  # sql = sql_fmt(path_ais_segments_sql)
-  # # f = open(f'{path_ais_segments_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
-  # # f.write(sql); f.close()
-  # job = bq_client.query(sql, job_id_prefix = job_pfx)
-  # # result = job.result() # uncomment to run
+  # rgn_segs_speedbins # TODO: move outside loop since applies to all rows, but only if not downstream dependent
+  job_pfx = f'rgn_segs_speedbins_'
+  msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
+  sql_speedbin            = get_speedbin_sql(df_speedbins, 'speed_knots')
+  sql_speedbin_implied    = get_speedbin_sql(df_speedbins, 'implied_speed_knots')
+  sql_speedbin_calculated = get_speedbin_sql(df_speedbins, 'calculated_knots')
+  sql_speedbin_final      = get_speedbin_sql(df_speedbins, 'final_speed_knots')
+  sql = sql_fmt('sql_v4/rgn_segs_speedbins.sql')
+  f = open(f'sql_v4/rgn_segs_speedbins_eval.sql', 'w')
+  f.write(sql); f.close()
+  job = bq_client.query(sql, job_id_prefix = job_pfx)
+  result = job.result() # uncomment to run
+  
+  job_pfx = f'rgn_segs_shore_'
+  msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
+  sql = sql_fmt('sql_v4/rgn_segs_shore.sql')
+  f = open(f'sql_v4/rgn_segs_shore_eval.sql', 'w')
+  f.write(sql); f.close()
+  job = bq_client.query(sql, job_id_prefix = job_pfx)
+  result = job.result() # uncomment to run
+
 
 msg(f'Iterating over {n_zones} zones.')
 
