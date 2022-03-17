@@ -251,76 +251,73 @@ FROM (
 	)
 );
 
--- -- # --	# Step 4: CREATE PARTITIONED AND CLUSTERED ` whalesafe_v3.ais_segments` table IF NOT EXISTS
+--# Step 4: CREATE PARTITIONED AND CLUSTERED ` whalesafe_v3.ais_segments` table IF NOT EXISTS
 CREATE TABLE IF NOT EXISTS `whalesafe_v3.ais_segments` (
-timestamp TIMESTAMP,
-date DATE,
-mmsi INT64,
-num INT64,
-timestamp_beg TIMESTAMP,
-timestamp_end TIMESTAMP,
-speed_knots NUMERIC,
-implied_speed_knots NUMERIC,
-calculated_knots NUMERIC,
-distance_km NUMERIC,
-distance_nm NUMERIC,
-segment_time_minutes FLOAT64,
-lon FLOAT64,
-lat FLOAT64,
-source STRING,
-region STRING,
-seg_id STRING,
-good_seg BOOL,
-overlapping_and_short BOOL,
-gt NUMERIC,
-point GEOGRAPHY,
-linestring GEOGRAPHY,
-final_speed_knots NUMERIC,
-touches_coast BOOL,
-speed_bin_num INT64,
-implied_speed_bin_num INT64,
-calculated_speed_bin_num INT64,
-final_speed_bin_num INT64
-)
-PARTITION BY DATE(timestamp) CLUSTER BY
-mmsi, region, point, linestring OPTIONS (description = "partitioned by day, clustered by (mmsi, point, linestring)",   require_partition_filter = TRUE);
+	timestamp TIMESTAMP,
+	date DATE,
+	mmsi INT64,
+	num INT64,
+	timestamp_beg TIMESTAMP,
+	timestamp_end TIMESTAMP,
+	speed_knots NUMERIC,
+	implied_speed_knots NUMERIC,
+	calculated_knots NUMERIC,
+	distance_km NUMERIC,
+	distance_nm NUMERIC,
+	segment_time_minutes FLOAT64,
+	lon FLOAT64,
+	lat FLOAT64,
+	source STRING,
+	region STRING,
+	seg_id STRING,
+	good_seg BOOL,
+	overlapping_and_short BOOL,
+	gt NUMERIC,
+	point GEOGRAPHY,
+	linestring GEOGRAPHY,
+	final_speed_knots NUMERIC,
+	touches_coast BOOL,
+	speed_bin_num INT64,
+	implied_speed_bin_num INT64,
+	calculated_speed_bin_num INT64,
+	final_speed_bin_num INT64)
+PARTITION BY DATE(timestamp) 
+CLUSTER BY
+	mmsi, region, point, linestring 
+OPTIONS (
+	description = "partitioned by day, clustered by (mmsi, point, linestring)",   
+	require_partition_filter = TRUE);
 
-# -- # Step 5: Insert everything from temporary table into ` whalesafe_v3.ais_segments`
-INSERT INTO
-`whalesafe_v3.ais_segments`
-SELECT
-*
-FROM
-`temp_ais_segments`;
+--# Step 5: Insert everything from temporary table into ` whalesafe_v3.ais_segments`
+INSERT INTO `whalesafe_v3.ais_segments`
+SELECT *
+FROM `temp_ais_segments`;
 
--- # -- # Step 6: Make whalesafe_v3 timestamp log table if not already existing.
-CREATE TABLE IF NOT EXISTS
-`whalesafe_v3.whalesafe_timestamp_log` (
-newest_timestamp TIMESTAMP,
-date_accessed TIMESTAMP,
-table_name STRING,
-query_exec STRING
+--# Step 6: Make whalesafe_v3 timestamp log table if not already existing.
+CREATE TABLE IF NOT EXISTS `whalesafe_v3.whalesafe_timestamp_log` (
+	newest_timestamp TIMESTAMP,
+	date_accessed TIMESTAMP,
+	table_name STRING,
+	query_exec STRING
 );
 
--- # -- # Step 7: Insert 'new_seg_ts', the new timestamp in `ais_segments` from BEFORE querying ais_data
+--# Step 7: Insert 'new_seg_ts', the new timestamp in `ais_segments` from BEFORE querying ais_data
 INSERT INTO `whalesafe_v3.whalesafe_timestamp_log`
 SELECT
-new_seg_ts AS newest_timestamp,
-CURRENT_TIMESTAMP() AS date_accessed,
-'ais_segments' AS table_name,
-'query_start' AS query_exec;
+	new_seg_ts AS newest_timestamp,
+	CURRENT_TIMESTAMP() AS date_accessed,
+	'ais_segments' AS table_name,
+	'query_start' AS query_exec;
 
--- # -- # Step 8: Insert 'new_seg_ts', the new timestamp in `ais_segments` from AFTER querying ais_data
+--# Step 8: Insert 'new_seg_ts', the new timestamp in `ais_segments` from AFTER querying ais_data
 INSERT INTO `whalesafe_v3.whalesafe_timestamp_log`
-SELECT
-(
-SELECT
-MAX(timestamp_end)
-FROM
-`whalesafe_v3.ais_segments`
-WHERE
-DATE(timestamp) > DATE_SUB(DATE(new_seg_ts), INTERVAL 3 MONTH)
-LIMIT 1) AS newest_timestamp,
-CURRENT_TIMESTAMP() AS date_accessed,
-'ais_segments' AS table_name,
-'query_end' AS query_exec;
+SELECT 
+	( SELECT MAX(timestamp_end)
+		FROM `whalesafe_v3.ais_segments`
+		WHERE
+		DATE(timestamp) > DATE_SUB(DATE(new_seg_ts), INTERVAL 3 MONTH)
+		LIMIT 1
+	) AS newest_timestamp,
+	CURRENT_TIMESTAMP() AS date_accessed,
+	'ais_segments' AS table_name,
+	'query_end' AS query_exec;

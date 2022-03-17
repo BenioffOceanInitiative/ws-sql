@@ -1,7 +1,7 @@
 --# OLD: [ais_segments.sql](https://github.com/BenioffOceanInitiative/ws-sql/blob/2bb89c2c96cf199b9e93d63fd54742f020c2c5a0/sql_v4/ais_segments.sql)
 
 # create table if needed
-CREATE TABLE IF NOT EXISTS `{tbl_rgn_segs}` (
+CREATE TABLE IF NOT EXISTS `benioff-ocean-initiative.whalesafe_v4.rgn_segs` (
   timestamp TIMESTAMP,
   date DATE,
   mmsi INT64,
@@ -30,13 +30,13 @@ OPTIONS (
   require_partition_filter = TRUE);
 
 --# delete for given region and dates
-DELETE FROM `{tbl_rgn_segs}`
+DELETE FROM `benioff-ocean-initiative.whalesafe_v4.rgn_segs`
   WHERE
-    DATE(timestamp) >= DATE('{date_beg}') AND
-    DATE(timestamp) <= DATE('{date_end}') AND
-    rgn = '{rgn}';
+    DATE(timestamp) >= DATE('2017-01-01') AND
+    DATE(timestamp) <= DATE('2017-03-01') AND
+    rgn = 'CAN-GoStLawrence';
 
---# construct vessel segments from {tbl_rgn_pts}
+--# construct vessel segments from benioff-ocean-initiative.whalesafe_v4.rgn_pts
 SELECT
   timestamp,
   DATE(timestamp) AS date,
@@ -150,11 +150,11 @@ FROM (
           LEAD( (timestamp), 1) OVER w AS t2, -- # t2 for point 2
           -- ST_MAKELINE(LEAD(ST_GeogPoint (lon, lat)) OVER w, (ST_GeogPoint (lon, lat)) ) AS line
         FROM
-          `{tbl_rgn_pts}`
+          `benioff-ocean-initiative.whalesafe_v4.rgn_pts`
         WHERE
-          DATE(timestamp) >= DATE('{date_beg}') AND
-          DATE(timestamp) <= DATE('{date_end}') AND
-          rgn = '{rgn}' AND
+          DATE(timestamp) >= DATE('2017-01-01') AND
+          DATE(timestamp) <= DATE('2017-03-01') AND
+          rgn = 'CAN-GoStLawrence' AND
           --AND good_seg IS TRUE
           speed_knots         > 0.001 AND 
           implied_speed_knots > 0.001 AND 

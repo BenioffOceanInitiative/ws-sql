@@ -1,10 +1,10 @@
-# prerequisites: Ben on Mac
+# prerequisites: Ben on new MacBook Air
 # - [Visual Studio Code](https://code.visualstudio.com/download)
 # - [homebrew](https://brew.sh)
 # - [Postgres app for Mac](https://postgresapp.com/downloads.html)
 # vi ~/.zprofile
 #   PATH=$PATH:/Users/bbest/Library/Python/3.8/bin:/Applications/Postgres.app/Contents/Versions/latest/bin
-# /usr/bin/pip3 install --upgrade pandas google-cloud-bigquery sqlalchemy psycopg2 oauth2client google-auth-httplib2 google-auth-oauthlib google-api-python-client
+# /opt/homebrew/bin/pip3 install --upgrade pandas google-cloud-bigquery pyarrow sqlalchemy psycopg2 python-dateutil oauth2client google-auth-httplib2 google-auth-oauthlib google-api-python-client
 
 # modules
 import pandas as pd
@@ -47,7 +47,8 @@ date_end  = date.today()
 project_id       = 'benioff-ocean-initiative'
 dataset          = 'whalesafe_v4'
 #credentials_json = '/home/admin/Benioff Ocean Initiative-454f666d1896.json'
-credentials_json = '/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/gfw/Benioff Ocean Initiative-454f666d1896.json'
+#credentials_json = '/Users/bbest/My Drive (ben@ecoquants.com)/projects/whalesafe/data/gfw/Benioff Ocean Initiative-454f666d1896.json'
+credentials_json = '/Volumes/GoogleDrive/My Drive/projects/whalesafe/data/gfw/Benioff Ocean Initiative-454f666d1896.json'
 # lgnd-website-service-account: https://console.cloud.google.com/iam-admin/serviceaccounts/details/114569616080626900590;edit=true?previousPage=%2Fapis%2Fcredentials%3Fproject%3Dbenioff-ocean-initiative%26authuser%3D1&authuser=1&project=benioff-ocean-initiative
 credentials      = service_account.Credentials.from_service_account_file(credentials_json)
 bq_client        = bigquery.Client(credentials=credentials, project=project_id)
@@ -60,18 +61,18 @@ tbl_gfw_satellite_positions_one_second_resolution = "world-fishing-827.satellite
 
 tbl_gfw_segs = "world-fishing-827.gfw_research.pipe_v20201001_segs"
 tbl_rgn_pts  = "benioff-ocean-initiative.whalesafe_v4.rgn_pts"
+tbl_rgn_segs = "benioff-ocean-initiative.whalesafe_v4.rgn_segs"
+tbl_shore    = "benioff-ocean-initiative.whalesafe_v4.shore"
 tbl_rgns     = "benioff-ocean-initiative.whalesafe_v4.rgns"
 tbl_zones    = "benioff-ocean-initiative.whalesafe_v4.zones"
-tbl_ais_data = "benioff-ocean-initiative.whalesafe_v4.ais_data"
+tbl_ais_data = "benioff-ocean-initiative.whalesafe_v4.ais_data" # TODO: rename to zone_pts?
 tbl_log      = "benioff-ocean-initiative.whalesafe_v4.timestamp_log"
 
-#path_rgn_pts_sql  = "sql_v4/rgn_pts.sql"
-path_rgn_pts_sql      = "sql_v4/rgn_pts.sql"
-path_ais_data_sql     = "sql_v4/ais_data.sql"
-path_ais_segments_sql = "sql_v4/ais_segments.sql"
+# path_rgn_pts_sql      = "sql_v4/rgn_pts.sql"
+# path_ais_data_sql     = "sql_v4/ais_data.sql"
+# path_ais_segments_sql = "sql_v4/ais_segments.sql"
 
 def msg(txt):
-  #txt = '  158.208 seconds; expected completion: 2020-06-09 12:48:31.328176-07:00'
   print(txt + " ~ " + datetime.now(tz.gettz('America/Los_Angeles')).strftime('%Y-%m-%d %H:%M:%S PDT'))
   sys.stdout.flush()
 
@@ -125,9 +126,7 @@ def get_sheet(RANGE_NAME = "zones_spatial", SPREADSHEET_ID=SPREADSHEET_ID, CREDE
 
 df_zones_spatial = get_sheet("zones_spatial")
 df_zones_dates   = get_sheet("zones_dates")
-
-# delta = date_end - date_beg
-# n_days = delta.days + 1 # 132 days
+df_speedbins     = get_sheet("speedbins")
 
 # gets regions with last fetched date from GFW data, based on {tbl_rgn_pts}
 df_rgns = bq_client.query(f"""
@@ -164,25 +163,24 @@ for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.loc[i_rgn,]
   xmin, xmax, ymin, ymax = [row['bbox'][key] for key in ['xmin', 'xmax', 'ymin', 'ymax']]
   date_beg = row['date_max']
 
-  # rgn_pts.sql
+  # rgn_pts
   job_pfx = f'rgn_pts_{rgn}_{date_beg}_{date_end}_'
   msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql = sql_fmt(path_rgn_pts_sql) # print(sql)
-  # f = open(f'{path_rgn_pts_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
+  sql = sql_fmt('sql_v4/rgn_pts.sql') # print(sql)
+  # f = open(f'sql_v4/rgn_pts_{rgn}_{date_beg}_{date_end}.sql', 'w')
   # f.write(sql); f.close()
   job = bq_client.query(sql, job_id_prefix = job_pfx)
   result = job.result() # uncomment to run
 
-  # # TODO: ais_data.sql for regions? or just zones?
-  # # - by rgn/zone or all at once?
-  # # - load zones first
-  # job_pfx = f'ais_data_{rgn}_{date_beg}_{date_end}_'
-  # msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  # sql = sql_fmt(path_rgn_pts_sql)
-  # # f = open(f'{path_rgn_pts_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
-  # # f.write(sql); f.close()
-  # job = bq_client.query(sql, job_id_prefix = job_pfx)
-  # # result = job.result() # uncomment to run
+  # rgn_segs
+  # date_beg = date(2017,  1,  1); date_end = date(2017,  3,  1)
+  job_pfx = f'ais_data_{rgn}_{date_beg}_{date_end}_'
+  msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
+  sql = sql_fmt('sql_v4/rgn_segs.sql')
+  f = open(f'sql_v4/rgn_segs_{rgn}_{date_beg}_{date_end}.sql', 'w')
+  f.write(sql); f.close()
+  job = bq_client.query(sql, job_id_prefix = job_pfx)
+  result = job.result() # uncomment to run
 
   # # TODO: ais_segments_sql.sql for regions? or just zones? 
   # # - by rgn/zone or all at once?
