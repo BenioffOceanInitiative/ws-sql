@@ -14,10 +14,10 @@ final_speed_knots = ROUND((
     WHEN implied_speed_knots BETWEEN 0.001 AND 50 THEN implied_speed_knots
     ELSE NULL
   END), 3),
-speedbin            = {sql_speedbin},
-speedbin_implied    = {sql_speedbin_implied},
-speedbin_calculated = {sql_speedbin_calculated},
-speedbin_final      = {sql_speedbin_final}
+speedbin            = {sql_speedbins},
+speedbin_implied    = {sql_speedbins_implied},
+speedbin_calculated = {sql_speedbins_calculated},
+speedbin_final      = {sql_speedbins_final}
 WHERE DATE(timestamp) > DATE('1900-01-01');
   -- AND
   -- ("final_speed_knots" IS NULL OR 

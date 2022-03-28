@@ -1,20 +1,34 @@
-DECLARE rgn_str STRING DEFAULT 'CAN-GoStLawrence';
-DECLARE period_str STRING DEFAULT 'last_30days';
-DECLARE min_date DATE DEFAULT '2017-01-01';
-DECLARE max_date DATE DEFAULT '2017-02-01';
+DECLARE rgn_str    STRING DEFAULT '{rgn}';
+DECLARE period_str STRING DEFAULT '{period}';
+-- DECLARE rgn_str    STRING DEFAULT 'CAN-GoStLawrence';
+-- DECLARE period_str STRING DEFAULT 'last_30days';
 
+--# get min, max dates based on period_str
+DECLARE max_date, min_date DATE;
+SET (max_date) = (
+  SELECT AS STRUCT MAX(DATE(timestamp)) 
+  FROM `benioff-ocean-initiative.whalesafe_v4.rgn_segs`
+  WHERE rgn = rgn_str AND timestamp > '1900-01-01' );
+SET (min_date) = (
+  SELECT AS STRUCT CASE period_str
+    WHEN 'last30days'  THEN DATE_SUB(max_date, INTERVAL 30 DAY)
+    WHEN 'last5days'   THEN DATE_SUB(max_date, INTERVAL 5 DAY)
+    WHEN 'last24hours' THEN DATE_SUB(max_date, INTERVAL 1 DAY)
+  END AS min_date );
+SELECT FORMAT('For %s: min_date = %t; max_date = %t', period_str, min_date, max_date) AS result;
+
+--# create table if needed
 -- DROP TABLE IF EXISTS `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum`;
-
 CREATE TABLE IF NOT EXISTS `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum` (
-    rgn STRING, 
-    h3res INT64, 
-    h3id STRING, 
-    length_m_gt10knots FLOAT64, 
-    length_m_all FLOAT64,
-    pct_length_gt10knots FLOAT64,
-    period STRING,
-    date_min DATE,
-    date_max DATE)
+  rgn STRING, 
+  h3res INT64, 
+  h3id STRING, 
+  length_m_gt10knots FLOAT64, 
+  length_m_all FLOAT64,
+  pct_length_gt10knots FLOAT64,
+  period STRING,
+  date_min DATE,
+  date_max DATE)
 CLUSTER BY rgn, h3res, h3id
 OPTIONS (
   description = "regional hexagon segments clustered by (rgn, h3res, h3id)");
@@ -72,11 +86,22 @@ SELECT
   FROM a
   LEFT JOIN g USING (rgn, h3res, h3id);
 
+--# add hexbin columnss
+ALTER TABLE `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum`
+  ADD COLUMN IF NOT EXISTS hexbin_num STRING;
+  ADD COLUMN IF NOT EXISTS hexbin_str STRING;
+
+UPDATE `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum` SET
+  hexbin_num = {sql_hexbins_num}
+  hexbin_str = {sql_hexbins_str}
+WHERE pct_length_gt10knots IS NOT NULL;
+
 --# TEST: https://bigquerygeoviz.appspot.com
 --# Query: 
 -- SELECT 
 --   h.rgn, h.h3res, h.h3id, 
 --   s.length_m_gt10knots, s.length_m_all, s.pct_length_gt10knots, 
+--   bin_pct_length_gt10knots,
 --   s.period, s.date_min, s.date_max,
 --   h.geog
 -- FROM 
@@ -91,7 +116,7 @@ SELECT
 --   USING (h3id)
 -- WHERE
 --   h.rgn = 'CAN-GoStLawrence' AND
---   h.h3res = 5; -- 6
+--   h.h3res = 5; -- 4, 5, 6 or 7
 --# Style: 
 --# - Data-driven; linear; pct_length_gt10knots; 
 --# - Domain: 0, 0.5, 1

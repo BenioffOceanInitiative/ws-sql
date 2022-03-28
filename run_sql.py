@@ -8,6 +8,7 @@
 
 # modules
 from __future__ import print_function
+from posixpath import basename
 import pandas as pd
 from google.cloud  import bigquery
 from google.oauth2 import service_account
@@ -126,10 +127,11 @@ def get_sheet(RANGE_NAME = "zones_spatial", SPREADSHEET_ID=SPREADSHEET_ID, CREDE
 
 df_zones_spatial = get_sheet("zones_spatial")
 df_zones_dates   = get_sheet("zones_dates")
-df_speedbins     = get_sheet("speedbins")
+df_bins          = get_sheet("bins")
+df_rgns          = get_sheet("rgns")
 
 # gets regions with last fetched date from GFW data, based on {tbl_rgn_pts}
-df_rgns = bq_client.query(f"""
+df_rgns_db = bq_client.query(f"""
   SELECT r.*, date_max FROM 
   ((SELECT rgn, ST_Extent(geog) AS bbox 
    FROM `{tbl_rgns}`
@@ -140,6 +142,11 @@ df_rgns = bq_client.query(f"""
      GROUP BY rgn) p ON r.rgn = p.rgn)
   ORDER BY rgn
   """).to_dataframe()
+df_rgns = pd.merge(
+  df_rgns,
+  df_rgns_db,
+  how = 'left',
+  on = 'rgn')
 n_rgns = df_rgns.shape[0]
 
 # get zones with last analyzed date, based on {tbl_ais_data}
@@ -157,14 +164,24 @@ n_rgns = df_rgns.shape[0]
 # n_zones = df_zones.shape[0]
 
 # get speedbins
-df_speedbins = df_speedbins[df_speedbins['version']=='v2']
-fld = 'implied_speed_knots'
+df_speedbins = df_bins[df_bins['version']=='speed_v2']
+df_hexbins   = df_bins[df_bins['version']=='rgn_hex_v1']
 
-def get_speedbin_sql(df, fld):
-  whens = df.apply(
-    lambda x: 
-      f"    WHEN {fld} > {x['speed_min']} AND {fld} <= {x['speed_max']} THEN '{x['speedbin']}'",
-      axis=1).str.cat(sep='\n')
+def get_bin_sql(df, fld, fld_multiplier = 1, bin_type='bin_str'):
+  if bin_type == 'bin_str':
+    whens = df.apply(
+      lambda x: f"""
+            WHEN  ({fld} * {fld_multiplier}) > {x['min']}
+              AND ({fld} * {fld_multiplier}) <= {x['max']} THEN '{x[bin_type]}'
+        """,
+        axis=1).str.cat(sep='\n')
+  else:
+    whens = df.apply(
+      lambda x: f"""
+            WHEN  ({fld} * {fld_multiplier}) > {x['min']}
+              AND ({fld} * {fld_multiplier}) <= {x['max']} THEN {x[bin_type]}
+        """,
+        axis=1).str.cat(sep='\n')
   sql = ('\n'
      '  CASE\n'
     f'{whens}\n'
@@ -173,7 +190,7 @@ def get_speedbin_sql(df, fld):
 
 msg(f'Iterating over {n_rgns} regions')
 
-for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.loc[i_rgn,]
+for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.iloc[i_rgn,]
   rgn = row['rgn']
   xmin, xmax, ymin, ymax = [row['bbox'][key] for key in ['xmin', 'xmax', 'ymin', 'ymax']]
   date_beg = row['date_max']
@@ -198,19 +215,20 @@ for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.loc[i_rgn,]
   result = job.result() # uncomment to run
 
   # rgn_segs_speedbins # TODO: move outside loop since applies to all rows, but only if not downstream dependent
-  job_pfx = f'rgn_segs_speedbins_'
+  job_pfx = f'rgn_segs_speedbins_{rgn}_'
   msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql_speedbin            = get_speedbin_sql(df_speedbins, 'speed_knots')
-  sql_speedbin_implied    = get_speedbin_sql(df_speedbins, 'implied_speed_knots')
-  sql_speedbin_calculated = get_speedbin_sql(df_speedbins, 'calculated_knots')
-  sql_speedbin_final      = get_speedbin_sql(df_speedbins, 'final_speed_knots')
+  sql_speedbins            = get_bin_sql(df_speedbins, 'speed_knots')
+  sql_speedbins_implied    = get_bin_sql(df_speedbins, 'implied_speed_knots')
+  sql_speedbins_calculated = get_bin_sql(df_speedbins, 'calculated_knots')
+  sql_speedbins_final      = get_bin_sql(df_speedbins, 'final_speed_knots')
   sql = sql_fmt('sql_v4/rgn_segs_speedbins.sql')
   f = open(f'sql_v4/rgn_segs_speedbins_eval.sql', 'w')
   f.write(sql); f.close()
   job = bq_client.query(sql, job_id_prefix = job_pfx)
   result = job.result() # uncomment to run
   
-  job_pfx = f'rgn_segs_shore_'
+  # shoreline
+  job_pfx = f'rgn_segs_shore_{rgn}_'
   msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
   sql = sql_fmt('sql_v4/rgn_segs_shore.sql')
   f = open(f'sql_v4/rgn_segs_shore_eval.sql', 'w')
@@ -218,6 +236,31 @@ for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.loc[i_rgn,]
   job = bq_client.query(sql, job_id_prefix = job_pfx)
   result = job.result() # uncomment to run
 
+  # TODO: filters
+
+  # hexagon summary
+  sql_hexbins_str = get_bin_sql(df_hexbins, 'pct_length_gt10knots', 100, 'bin_str') # print(sql_hexbins_str)
+  sql_hexbins_num = get_bin_sql(df_hexbins, 'pct_length_gt10knots', 100, 'bin_num') # print(sql_hexbins_num)
+  period = 'last30days'; sql_exec(
+    f_sql = 'sql_v4/rgns_h3_segsum.sql', 
+    sfx   = f'{rgn}_{period}'
+    f_sql.basename()
+    )
+  
+f_eval = '_'.join([os.path.splitext(f_sql)[0], 'eval', sfx, '.sql'])
+def sql_exec(f_sql):
+job_sfx = f'rgns_h3_segsum_{rgn}_{period}_'
+msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
+sql = sql_fmt(f_sql)
+f = open(f'sql_v4/rgns_h3_segsum_eval.sql', 'w')
+f.write(sql); f.close()
+job = bq_client.query(sql, job_id_prefix = job_pfx)
+result = job.result() # uncomment to run
+
+def period_to_dates():
+  
+
+# TODO: rgns_h3_segsum
 
 msg(f'Iterating over {n_zones} zones.')
 
