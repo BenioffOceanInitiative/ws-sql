@@ -8,6 +8,7 @@
 
 # modules
 from __future__ import print_function
+from asyncio.windows_events import NULL
 from posixpath import basename
 import pandas as pd
 from google.cloud  import bigquery
@@ -60,14 +61,16 @@ tbl_gfw_static_sunrise                            = "world-fishing-827.pipe_stat
 tbl_gfw_static_norad_to_receiver                  = "world-fishing-827.pipe_static.norad_to_receiver_v20200127"
 tbl_gfw_satellite_positions_one_second_resolution = "world-fishing-827.satellite_positions_v20190208.satellite_positions_one_second_resolution_"
 
-tbl_gfw_segs = "world-fishing-827.gfw_research.pipe_v20201001_segs"
-tbl_rgn_pts  = "benioff-ocean-initiative.whalesafe_v4.rgn_pts"
-tbl_rgn_segs = "benioff-ocean-initiative.whalesafe_v4.rgn_segs"
-tbl_shore    = "benioff-ocean-initiative.whalesafe_v4.shore"
-tbl_rgns     = "benioff-ocean-initiative.whalesafe_v4.rgns"
-tbl_zones    = "benioff-ocean-initiative.whalesafe_v4.zones"
+tbl_gfw_segs       = "world-fishing-827.gfw_research.pipe_v20201001_segs"
+tbl_rgn_pts        = "benioff-ocean-initiative.whalesafe_v4.rgn_pts"
+tbl_rgn_segs       = "benioff-ocean-initiative.whalesafe_v4.rgn_segs"
+tbl_rgns_h3        = "benioff-ocean-initiative.whalesafe_v4.rgns_h3"
+tbl_rgns_h3_segsum = "benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum"
+tbl_shore          = "benioff-ocean-initiative.whalesafe_v4.shore"
+tbl_rgns           = "benioff-ocean-initiative.whalesafe_v4.rgns"
+tbl_zones          = "benioff-ocean-initiative.whalesafe_v4.zones"
 #tbl_ais_data = "benioff-ocean-initiative.whalesafe_v4.ais_data" # TODO: rename to zone_pts?
-tbl_log      = "benioff-ocean-initiative.whalesafe_v4.timestamp_log"
+tbl_log            = "benioff-ocean-initiative.whalesafe_v4.timestamp_log"
 
 # path_rgn_pts_sql      = "sql_v4/rgn_pts.sql"
 # path_ais_data_sql     = "sql_v4/ais_data.sql"
@@ -85,45 +88,45 @@ def sql_fmt(f):
     return(f.format(**dict(globals(), **locals())))
 
 def get_sheet(RANGE_NAME = "zones_spatial", SPREADSHEET_ID=SPREADSHEET_ID, CREDENTIALS_JSON=CREDENTIALS_JSON):
-    """Shows basic usage of the Sheets API.
-    Prints values from a sample spreadsheet.
-    """
-    creds = None
+  """Shows basic usage of the Sheets API.
+  Prints values from a sample spreadsheet.
+  """
+  creds = None
 
-    with open(CREDENTIALS_JSON, 'r') as file:
-      CREDENTIALS_STR= file.read().replace('\n', '')
-    SHEETS_KEY = json.loads(CREDENTIALS_STR)
+  with open(CREDENTIALS_JSON, 'r') as file:
+    CREDENTIALS_STR= file.read().replace('\n', '')
+  SHEETS_KEY = json.loads(CREDENTIALS_STR)
+  
+  # The file token.json stores the user's access and refresh tokens, and is
+  # created automatically when the authorization flow completes for the first
+  # time.
+  if os.path.exists(CREDENTIALS_JSON):
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(SHEETS_KEY, SCOPES)
+  if not creds or creds.invalid:
+    sys.exit("CREDENTIALS_JSON not found or invalid:" + CREDENTIALS_JSON)
+  try:
+    service = build('sheets', 'v4', credentials=creds)
     
-    # The file token.json stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    if os.path.exists(CREDENTIALS_JSON):
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(SHEETS_KEY, SCOPES)
-    if not creds or creds.invalid:
-        sys.exit("CREDENTIALS_JSON not found or invalid:" + CREDENTIALS_JSON)
-    try:
-      service = build('sheets', 'v4', credentials=creds)
-      
-      # Call the Sheets API
-      sheet = service.spreadsheets()
-      # RANGE_NAME = 'zone_dates'
-      result = sheet.values().get(
-        spreadsheetId=SPREADSHEET_ID,
-        range=RANGE_NAME).execute()
-      values = result.get('values', [])
-      
-      if not values:
-        print('No data found.')
-        return()
-      else:
-        df = pd.DataFrame(values)
-        fld_names = df.iloc[0] # grab the first row for the header
-        df = df[1:]            # take the data less the header row
-        df.columns = fld_names # set the header row as the df header
-        return df
-      
-    except HttpError as err:
-      print(err)
+    # Call the Sheets API
+    sheet = service.spreadsheets()
+    # RANGE_NAME = 'zone_dates'
+    result = sheet.values().get(
+      spreadsheetId=SPREADSHEET_ID,
+      range=RANGE_NAME).execute()
+    values = result.get('values', [])
+    
+    if not values:
+      print('No data found.')
+      return()
+    else:
+      df = pd.DataFrame(values)
+      fld_names = df.iloc[0] # grab the first row for the header
+      df = df[1:]            # take the data less the header row
+      df.columns = fld_names # set the header row as the df header
+      return df
+
+  except HttpError as err:
+    print(err)
 
 df_zones_spatial = get_sheet("zones_spatial")
 df_zones_dates   = get_sheet("zones_dates")
@@ -176,6 +179,7 @@ def get_bin_sql(df, fld, fld_multiplier = 1, bin_type='bin_str'):
         """,
         axis=1).str.cat(sep='\n')
   else:
+    # assume bin_type='bin_num'
     whens = df.apply(
       lambda x: f"""
             WHEN  ({fld} * {fld_multiplier}) > {x['min']}
@@ -187,80 +191,84 @@ def get_bin_sql(df, fld, fld_multiplier = 1, bin_type='bin_str'):
     f'{whens}\n'
     f'  END\n')
   return(sql)
+  
+# rgn_segs_speedbins
+sql_speedbins_str            = get_bin_sql(df_speedbins, 'speed_knots', bin_type='bin_str') # print(sql_speedbins_str)
+sql_speedbins_num            = get_bin_sql(df_speedbins, 'speed_knots', bin_type='bin_num') # print(sql_speedbins_num)
+sql_speedbins_implied_str    = get_bin_sql(df_speedbins, 'implied_speed_knots', bin_type='bin_str')
+sql_speedbins_implied_num    = get_bin_sql(df_speedbins, 'implied_speed_knots', bin_type='bin_num')
+sql_speedbins_calculated_str = get_bin_sql(df_speedbins, 'calculated_knots', bin_type='bin_str')
+sql_speedbins_calculated_num = get_bin_sql(df_speedbins, 'calculated_knots', bin_type='bin_num')
+sql_speedbins_final_str      = get_bin_sql(df_speedbins, 'final_speed_knots', bin_type='bin_str')
+sql_speedbins_final_num      = get_bin_sql(df_speedbins, 'final_speed_knots', bin_type='bin_num')
+sql_hexbins_str = get_bin_sql(df_hexbins, 'pct_length_gt10knots', 100, 'bin_str') # print(sql_hexbins_str)
+sql_hexbins_num = get_bin_sql(df_hexbins, 'pct_length_gt10knots', 100, 'bin_num') # print(sql_hexbins_num)
+
+def sql_exec(f_sql, sfx='', eval_sql=False, wait=False):
+  # rgn      = 'CAN-GoStLawrence'
+  # period   = 'last30days'
+  # f_sql    = 'sql_v4/rgns_h3_segsum.sql'
+  # sfx      = f'{rgn}_{period}'
+  # eval_sql = 'EVAL'
+  
+  # parse
+  f = os.path.splitext(f_sql)[0]
+  b = os.path.basename(f)
+  msg(f'sql_exec: {b}_{sfx}')
+
+  # evaluate sql with variable substitution
+  sql = sql_fmt(f_sql)
+  
+  # output evaluated sql if string given for `eval_sql`
+  if eval_sql:
+    e_sql = f'{f}_{sfx}.sql'
+    msg(f'  writing evaluated sql: {e_sql}')
+    e = open(e_sql, 'w'); e.write(sql); e.close()
+  
+  # submit query job
+  job = bq_client.query(sql, job_id_prefix = f'{b}_{sfx}')
+
+  # wait to return by getting
+  if wait:
+    result = job.result() # uncomment to run
+
+def show_jobs(n = 10):
+  print(f"Last {n} jobs:\n              begin | status | name | errors")
+  for job in bq_client.list_jobs(max_results=n):  # API request(s)
+    print(f"{job.created:%Y-%m-%d %H:%M:%S} | {job.state} | {job.job_id} | {job.exception()}")
+# show_jobs(10)
 
 msg(f'Iterating over {n_rgns} regions')
 
-for i_rgn,row in df_rgns.iterrows(): # i_rgn = 0; row = df_rgns.iloc[i_rgn,]
+# create tables if don't exist
+sql_exec('sql_v4/rgn_segs_create.sql', 'ALL')
+sql_exec('sql_v4/rgns_h3_segsum_create.sql', 'ALL')
+
+for i_rgn,row in df_rgns.iterrows(): # i_rgn = 1; row = df_rgns.iloc[i_rgn,]
   rgn = row['rgn']
   xmin, xmax, ymin, ymax = [row['bbox'][key] for key in ['xmin', 'xmax', 'ymin', 'ymax']]
   date_beg = row['date_max']
 
   # rgn_pts
-  job_pfx = f'rgn_pts_{rgn}_{date_beg}_{date_end}_'
-  msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql = sql_fmt('sql_v4/rgn_pts.sql') # print(sql)
-  # f = open(f'sql_v4/rgn_pts_{rgn}_{date_beg}_{date_end}.sql', 'w')
-  # f.write(sql); f.close()
-  job = bq_client.query(sql, job_id_prefix = job_pfx)
-  result = job.result() # uncomment to run
+  sql_exec('sql_v4/rgn_pts.sql', f'{rgn}_{date_beg}_{date_end}')
 
   # rgn_segs
-  # date_beg = date(2017,  1,  1); date_end = date(2017,  3,  1)
-  job_pfx = f'rgn_segs_{rgn}_{date_beg}_{date_end}_'
-  msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql = sql_fmt('sql_v4/rgn_segs.sql')
-  f = open(f'sql_v4/rgn_segs_{rgn}_{date_beg}_{date_end}.sql', 'w')
-  f.write(sql); f.close()
-  job = bq_client.query(sql, job_id_prefix = job_pfx)
-  result = job.result() # uncomment to run
+  sql_exec('sql_v4/rgn_segs.sql', f'{rgn}')
 
-  # rgn_segs_speedbins # TODO: move outside loop since applies to all rows, but only if not downstream dependent
-  job_pfx = f'rgn_segs_speedbins_{rgn}_'
-  msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql_speedbins            = get_bin_sql(df_speedbins, 'speed_knots')
-  sql_speedbins_implied    = get_bin_sql(df_speedbins, 'implied_speed_knots')
-  sql_speedbins_calculated = get_bin_sql(df_speedbins, 'calculated_knots')
-  sql_speedbins_final      = get_bin_sql(df_speedbins, 'final_speed_knots')
-  sql = sql_fmt('sql_v4/rgn_segs_speedbins.sql')
-  f = open(f'sql_v4/rgn_segs_speedbins_eval.sql', 'w')
-  f.write(sql); f.close()
-  job = bq_client.query(sql, job_id_prefix = job_pfx)
-  result = job.result() # uncomment to run
+  # rgn_segs_speedbins
+  sql_exec('sql_v4/rgn_segs_speedbins.sql', f'{rgn}')
+
+  # rgn_segs_shore
+  sql_exec('sql_v4/rgn_segs_shore.sql', f'{rgn}', 'EVAL')
+
+  # TODO: filter by shore
+
+  # rgns_h3_segsum
+  period = 'last30days' ; sql_exec('sql_v4/rgns_h3_segsum.sql', f'{rgn}_{period}')
+  period = 'last5days'  ; sql_exec('sql_v4/rgns_h3_segsum.sql', f'{rgn}_{period}')
+  period = 'last24hours'; sql_exec('sql_v4/rgns_h3_segsum.sql', f'{rgn}_{period}')
   
-  # shoreline
-  job_pfx = f'rgn_segs_shore_{rgn}_'
-  msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql = sql_fmt('sql_v4/rgn_segs_shore.sql')
-  f = open(f'sql_v4/rgn_segs_shore_eval.sql', 'w')
-  f.write(sql); f.close()
-  job = bq_client.query(sql, job_id_prefix = job_pfx)
-  result = job.result() # uncomment to run
-
-  # TODO: filters
-
-  # hexagon summary
-  sql_hexbins_str = get_bin_sql(df_hexbins, 'pct_length_gt10knots', 100, 'bin_str') # print(sql_hexbins_str)
-  sql_hexbins_num = get_bin_sql(df_hexbins, 'pct_length_gt10knots', 100, 'bin_num') # print(sql_hexbins_num)
-  period = 'last30days'; sql_exec(
-    f_sql = 'sql_v4/rgns_h3_segsum.sql', 
-    sfx   = f'{rgn}_{period}'
-    f_sql.basename()
-    )
-  
-f_eval = '_'.join([os.path.splitext(f_sql)[0], 'eval', sfx, '.sql'])
-def sql_exec(f_sql):
-job_sfx = f'rgns_h3_segsum_{rgn}_{period}_'
-msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-sql = sql_fmt(f_sql)
-f = open(f'sql_v4/rgns_h3_segsum_eval.sql', 'w')
-f.write(sql); f.close()
-job = bq_client.query(sql, job_id_prefix = job_pfx)
-result = job.result() # uncomment to run
-
-def period_to_dates():
-  
-
-# TODO: rgns_h3_segsum
+  # TODO: join by IHS
 
 msg(f'Iterating over {n_zones} zones.')
 
@@ -290,14 +298,6 @@ for i_zone,row in df_zones.iterrows(): # i_zone = 0; row = df_zones.loc[i_zone,]
   # f.write(sql); f.close()
   job = bq_client.query(sql, job_id_prefix = job_pfx)
   # result = job.result() # uncomment to run
-
-
-
-# show job status
-n_jobs = n_rgns
-print(f"Last {n_jobs} jobs:\n              begin |                 end | status | name                                 | errors")
-for job in bq_client.list_jobs(max_results=n_jobs):  # API request(s)
-  print(f"{job.created:%Y-%m-%d %H:%M:%S} | {job.state} | {job.job_id}") # " | {job.exception()}")
 
 # get summary of regions in rgn_pts
 sql = "SELECT rgn, \

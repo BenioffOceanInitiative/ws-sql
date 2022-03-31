@@ -1,13 +1,15 @@
 DECLARE rgn_str    STRING DEFAULT '{rgn}';
 DECLARE period_str STRING DEFAULT '{period}';
 -- DECLARE rgn_str    STRING DEFAULT 'CAN-GoStLawrence';
--- DECLARE period_str STRING DEFAULT 'last_30days';
+-- DECLARE period_str STRING DEFAULT 'last30days';
+
+--# depends on: rgns_h3_segsum_create.sql
 
 --# get min, max dates based on period_str
 DECLARE max_date, min_date DATE;
 SET (max_date) = (
   SELECT AS STRUCT MAX(DATE(timestamp)) 
-  FROM `benioff-ocean-initiative.whalesafe_v4.rgn_segs`
+  FROM `{tbl_rgn_segs}`
   WHERE rgn = rgn_str AND timestamp > '1900-01-01' );
 SET (min_date) = (
   SELECT AS STRUCT CASE period_str
@@ -15,31 +17,15 @@ SET (min_date) = (
     WHEN 'last5days'   THEN DATE_SUB(max_date, INTERVAL 5 DAY)
     WHEN 'last24hours' THEN DATE_SUB(max_date, INTERVAL 1 DAY)
   END AS min_date );
-SELECT FORMAT('For %s: min_date = %t; max_date = %t', period_str, min_date, max_date) AS result;
-
---# create table if needed
--- DROP TABLE IF EXISTS `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum`;
-CREATE TABLE IF NOT EXISTS `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum` (
-  rgn STRING, 
-  h3res INT64, 
-  h3id STRING, 
-  length_m_gt10knots FLOAT64, 
-  length_m_all FLOAT64,
-  pct_length_gt10knots FLOAT64,
-  period STRING,
-  date_min DATE,
-  date_max DATE)
-CLUSTER BY rgn, h3res, h3id
-OPTIONS (
-  description = "regional hexagon segments clustered by (rgn, h3res, h3id)");
+-- SELECT FORMAT('For %s: min_date = %t; max_date = %t', period_str, min_date, max_date) AS result;
 
 DELETE 
-FROM `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum`
+FROM `{tbl_rgns_h3_segsum}`
 WHERE
   rgn = rgn_str AND
   period = period_str;
 
-INSERT `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum` (
+INSERT `{tbl_rgns_h3_segsum}` (
   rgn, h3res, h3id, 
   length_m_gt10knots, length_m_all, pct_length_gt10knots, 
   period, date_min, date_max)
@@ -52,12 +38,12 @@ WITH
         ST_UNION(ST_DUMP(ST_INTERSECTION(h.geog, s.linestring), 1)) AS geog
       FROM (
           SELECT *
-          FROM `benioff-ocean-initiative.whalesafe_v4.rgns_h3`
+          FROM `{tbl_rgns_h3}`
           WHERE rgn = rgn_str )
           AS h
         INNER JOIN (
           SELECT *
-          FROM `benioff-ocean-initiative.whalesafe_v4.rgn_segs`
+          FROM `{tbl_rgn_segs}`
           WHERE 
             rgn = rgn_str AND
             DATE(timestamp) >= min_date AND
@@ -86,13 +72,8 @@ SELECT
   FROM a
   LEFT JOIN g USING (rgn, h3res, h3id);
 
---# add hexbin columnss
-ALTER TABLE `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum`
-  ADD COLUMN IF NOT EXISTS hexbin_num STRING;
-  ADD COLUMN IF NOT EXISTS hexbin_str STRING;
-
-UPDATE `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum` SET
-  hexbin_num = {sql_hexbins_num}
+UPDATE `{tbl_rgns_h3_segsum}` SET
+  hexbin_num = {sql_hexbins_num},
   hexbin_str = {sql_hexbins_str}
 WHERE pct_length_gt10knots IS NOT NULL;
 

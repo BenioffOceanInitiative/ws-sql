@@ -1,43 +1,46 @@
 --# OLD: [ais_segments.sql](https://github.com/BenioffOceanInitiative/ws-sql/blob/2bb89c2c96cf199b9e93d63fd54742f020c2c5a0/sql_v4/ais_segments.sql)
 
---# create table if needed
-CREATE TABLE IF NOT EXISTS `{tbl_rgn_segs}` (
-  timestamp TIMESTAMP,
-  date DATE,
-  mmsi INT64,
-  num INT64,
-  timestamp_beg TIMESTAMP,
-  timestamp_end TIMESTAMP,
-  speed_knots NUMERIC,
-  implied_speed_knots NUMERIC,
-  calculated_knots NUMERIC,
-  distance_km NUMERIC,
-  distance_nm NUMERIC,
-  segment_time_minutes FLOAT64,
-  lon FLOAT64,
-  lat FLOAT64,
-  source STRING,
-  rgn STRING,
-  seg_id STRING,
-  good_seg BOOL,
-  overlapping_and_short BOOL,
-  point GEOGRAPHY,
-  linestring GEOGRAPHY)
-PARTITION BY DATE(timestamp) 
-CLUSTER BY mmsi, rgn, point, linestring
-OPTIONS (
-  description              = "partitioned by day, clustered by (mmsi, point, linestring)", 
-  require_partition_filter = TRUE);
+--# create table if needed: rgn_segs_create.sql
+
+--# declare variables
+DECLARE date_beg DATE;
+DECLARE date_end DATE DEFAULT '{date_end}';
+SET (date_beg) =  (
+  SELECT AS STRUCT COALESCE(MAX(DATE(timestamp)), '{date_init}'), 
+  FROM `{tbl_rgn_segs}`
+  WHERE rgn = '{rgn}' AND timestamp > '1900-01-01' );
+-- SELECT FORMAT('date_beg = %t; date_end = %t', date_beg, date_end) AS result;
 
 --# delete for given region and dates
 DELETE FROM `{tbl_rgn_segs}`
   WHERE
-    DATE(timestamp) >= DATE('{date_beg}') AND
-    DATE(timestamp) <= DATE('{date_end}') AND
+    DATE(timestamp) >= DATE(date_beg) AND
+    DATE(timestamp) <= DATE(date_end) AND
     rgn = '{rgn}';
 
 --# construct vessel segments from {tbl_rgn_pts}
-INSERT INTO `{tbl_rgn_segs}`
+INSERT `{tbl_rgn_segs}` (
+  timestamp,
+  date,
+  mmsi,
+  num,
+  timestamp_beg,
+  timestamp_end,
+  speed_knots,
+  implied_speed_knots,
+  calculated_knots,
+  distance_km,
+  distance_nm,
+  segment_time_minutes,
+  lon,
+  lat,
+  source,
+  rgn,
+  seg_id,
+  good_seg,
+  overlapping_and_short,
+  point,
+  linestring)
 SELECT
   timestamp,
   DATE(timestamp) AS date,
@@ -153,8 +156,8 @@ FROM (
         FROM
           `{tbl_rgn_pts}`
         WHERE
-          DATE(timestamp) >= DATE('{date_beg}') AND
-          DATE(timestamp) <= DATE('{date_end}') AND
+          DATE(timestamp) >= DATE(date_beg) AND
+          DATE(timestamp) <= DATE(date_end) AND
           rgn = '{rgn}' AND
           --AND good_seg IS TRUE
           speed_knots         > 0.001 AND 
