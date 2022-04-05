@@ -1,7 +1,3 @@
---# add column touches_coast
-ALTER TABLE `{tbl_rgn_segs}` 
-  ADD COLUMN IF NOT EXISTS touches_shore BOOL;
-
 UPDATE `{tbl_rgn_segs}` segs
 SET touches_shore = TRUE
 FROM `{tbl_shore}` shore

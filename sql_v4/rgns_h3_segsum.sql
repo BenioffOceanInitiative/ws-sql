@@ -66,8 +66,9 @@ WITH
     GROUP BY rgn, h3res, h3id )
 SELECT 
   rgn, h3res, h3id, 
-  length_m_gt10knots, length_m_all,
-  length_m_gt10knots / length_m_all AS pct_length_gt10knots, 
+  COALESCE(length_m_gt10knots, 0) AS length_m_gt10knots, 
+  COALESCE(length_m_all, 0) AS length_m_all,
+  COALESCE(length_m_gt10knots, 0) / COALESCE(length_m_all, 0) AS pct_length_gt10knots, 
   period_str AS period, min_date AS date_min, max_date AS date_max
   FROM a
   LEFT JOIN g USING (rgn, h3res, h3id);
@@ -82,22 +83,22 @@ WHERE pct_length_gt10knots IS NOT NULL;
 -- SELECT 
 --   h.rgn, h.h3res, h.h3id, 
 --   s.length_m_gt10knots, s.length_m_all, s.pct_length_gt10knots, 
---   bin_pct_length_gt10knots,
+--   s.hexbin_num, s.hexbin_str,
 --   s.period, s.date_min, s.date_max,
 --   h.geog
 -- FROM 
---   `benioff-ocean-initiative.whalesafe_v4.rgns_h3` 
+--   `{tbl_rgns_h3}` 
 --   AS h
 -- LEFT JOIN 
 --   (SELECT *
---     FROM `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum`
+--     FROM `{tbl_rgns_h3_segsum}`
 --     WHERE 
---     period = 'last_30days') 
+--     period = '{period}') 
 --   AS s
 --   USING (h3id)
 -- WHERE
---   h.rgn = 'CAN-GoStLawrence' AND
---   h.h3res = 5; -- 4, 5, 6 or 7
+--   h.rgn = '{rgn}' AND
+--   h.h3res = 4; -- 4, 5, 6 or 7
 --# Style: 
 --# - Data-driven; linear; pct_length_gt10knots; 
 --# - Domain: 0, 0.5, 1

@@ -60,14 +60,14 @@ tbl_gfw_research_satellite_timing                 = "world-fishing-827.gfw_resea
 tbl_gfw_static_sunrise                            = "world-fishing-827.pipe_static.sunrise"
 tbl_gfw_static_norad_to_receiver                  = "world-fishing-827.pipe_static.norad_to_receiver_v20200127"
 tbl_gfw_satellite_positions_one_second_resolution = "world-fishing-827.satellite_positions_v20190208.satellite_positions_one_second_resolution_"
+tbl_gfw_segs                                      = "world-fishing-827.gfw_research.pipe_v20201001_segs"
 
-tbl_gfw_segs       = "world-fishing-827.gfw_research.pipe_v20201001_segs"
+tbl_shore          = "benioff-ocean-initiative.whalesafe_v4.shore"
+tbl_rgns           = "benioff-ocean-initiative.whalesafe_v4.rgns"
 tbl_rgn_pts        = "benioff-ocean-initiative.whalesafe_v4.rgn_pts"
 tbl_rgn_segs       = "benioff-ocean-initiative.whalesafe_v4.rgn_segs"
 tbl_rgns_h3        = "benioff-ocean-initiative.whalesafe_v4.rgns_h3"
 tbl_rgns_h3_segsum = "benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum"
-tbl_shore          = "benioff-ocean-initiative.whalesafe_v4.shore"
-tbl_rgns           = "benioff-ocean-initiative.whalesafe_v4.rgns"
 tbl_zones          = "benioff-ocean-initiative.whalesafe_v4.zones"
 #tbl_ais_data = "benioff-ocean-initiative.whalesafe_v4.ais_data" # TODO: rename to zone_pts?
 tbl_log            = "benioff-ocean-initiative.whalesafe_v4.timestamp_log"
@@ -174,18 +174,22 @@ def get_bin_sql(df, fld, fld_multiplier = 1, bin_type='bin_str'):
   if bin_type == 'bin_str':
     whens = df.apply(
       lambda x: f"""
-            WHEN  ({fld} * {fld_multiplier}) > {x['min']}
-              AND ({fld} * {fld_multiplier}) <= {x['max']} THEN '{x[bin_type]}'
-        """,
-        axis=1).str.cat(sep='\n')
+              WHEN  ({fld} * {fld_multiplier}) = {x['max']} THEN '{x[bin_type]}'
+          """ if x['min'] == x['max'] else (
+          f"""
+              WHEN  ({fld} * {fld_multiplier}) > {x['min']}
+                AND ({fld} * {fld_multiplier}) <= {x['max']} THEN '{x[bin_type]}'
+          """), axis=1).str.cat(sep='\n')
   else:
     # assume bin_type='bin_num'
     whens = df.apply(
       lambda x: f"""
+              WHEN  ({fld} * {fld_multiplier}) = {x['max']} THEN {x[bin_type]}
+          """ if x['min'] == x['max'] else (
+          f"""
             WHEN  ({fld} * {fld_multiplier}) > {x['min']}
               AND ({fld} * {fld_multiplier}) <= {x['max']} THEN {x[bin_type]}
-        """,
-        axis=1).str.cat(sep='\n')
+          """), axis=1).str.cat(sep='\n')
   sql = ('\n'
      '  CASE\n'
     f'{whens}\n'
@@ -204,16 +208,23 @@ sql_speedbins_final_num      = get_bin_sql(df_speedbins, 'final_speed_knots', bi
 sql_hexbins_str = get_bin_sql(df_hexbins, 'pct_length_gt10knots', 100, 'bin_str') # print(sql_hexbins_str)
 sql_hexbins_num = get_bin_sql(df_hexbins, 'pct_length_gt10knots', 100, 'bin_num') # print(sql_hexbins_num)
 
-def sql_exec(f_sql, sfx='', eval_sql=False, wait=False):
+def sql_exec(f_sql, sfx='', eval_sql=False, wait=False, eval=True):
   # rgn      = 'CAN-GoStLawrence'
   # period   = 'last30days'
   # f_sql    = 'sql_v4/rgns_h3_segsum.sql'
   # sfx      = f'{rgn}_{period}'
   # eval_sql = 'EVAL'
   
+  if (wait and not eval):
+    raise ValueError('Cannot have wait=True and eval=False.')
+  
   # parse
-  f = os.path.splitext(f_sql)[0]
-  b = os.path.basename(f)
+  if os.path.exists(f_sql):
+    f = os.path.splitext(f_sql)[0]
+    b = os.path.basename(f)
+  else:
+    f = 'sql_v4/'
+    b = ''
   msg(f'sql_exec: {b}_{sfx}')
 
   # evaluate sql with variable substitution
@@ -226,11 +237,13 @@ def sql_exec(f_sql, sfx='', eval_sql=False, wait=False):
     e = open(e_sql, 'w'); e.write(sql); e.close()
   
   # submit query job
-  job = bq_client.query(sql, job_id_prefix = f'{b}_{sfx}')
+  if eval:
+    job = bq_client.query(sql, job_id_prefix = f'{b}_{sfx}')
 
   # wait to return by getting
   if wait:
     result = job.result() # uncomment to run
+    return result
 
 def show_jobs(n = 10):
   print(f"Last {n} jobs:\n              begin | status | name | errors")
@@ -241,90 +254,103 @@ def show_jobs(n = 10):
 msg(f'Iterating over {n_rgns} regions')
 
 # create tables if don't exist
-sql_exec('sql_v4/rgn_segs_create.sql', 'ALL')
-sql_exec('sql_v4/rgns_h3_segsum_create.sql', 'ALL')
+sql_exec('sql_v4/rgn_pts_create.sql'          , 'ALL')
+sql_exec('sql_v4/rgn_segs_create.sql'         , 'ALL')
+sql_exec('sql_v4/rgn_segs_speedbins_alter.sql', 'ALL')
+sql_exec('sql_v4/rgn_segs_shore_alter.sql'    , 'ALL')
+sql_exec('sql_v4/rgns_h3_segsum_create.sql'   , 'ALL')
 
 for i_rgn,row in df_rgns.iterrows(): # i_rgn = 1; row = df_rgns.iloc[i_rgn,]
   rgn = row['rgn']
   xmin, xmax, ymin, ymax = [row['bbox'][key] for key in ['xmin', 'xmax', 'ymin', 'ymax']]
-  date_beg = row['date_max']
+  # date_beg = row['date_max']
+  date_beg = date_init
+  #msg(f'{i_rgn} of {n_rgns}: {rgn}')
+  if i_rgn == 1:
+    msg(f'  skipping {rgn}')
+    continue
 
   # rgn_pts
-  sql_exec('sql_v4/rgn_pts.sql', f'{rgn}_{date_beg}_{date_end}')
+  # sql_exec('sql_v4/rgn_pts.sql', f'{rgn}_{date_beg}_{date_end}', wait=True)
 
   # rgn_segs
-  sql_exec('sql_v4/rgn_segs.sql', f'{rgn}')
+  sql_exec('sql_v4/rgn_segs.sql', f'{rgn}_{date_beg}_{date_end}', wait=True)
 
   # rgn_segs_speedbins
-  sql_exec('sql_v4/rgn_segs_speedbins.sql', f'{rgn}')
+  sql_exec('sql_v4/rgn_segs_speedbins.sql', f'{rgn}', wait=True)
 
   # rgn_segs_shore
-  sql_exec('sql_v4/rgn_segs_shore.sql', f'{rgn}', 'EVAL')
+  sql_exec('sql_v4/rgn_segs_shore.sql', f'{rgn}')
 
   # TODO: filter by shore
 
   # rgns_h3_segsum
-  period = 'last30days' ; sql_exec('sql_v4/rgns_h3_segsum.sql', f'{rgn}_{period}')
+  period = 'last30days' ; sql_exec('sql_v4/rgns_h3_segsum.sql', f'{rgn}_{period}', eval_sql=True, eval=True)
+  # Example: green-red https://jsfiddle.net/bdbest/hyLt0782/34/
   period = 'last5days'  ; sql_exec('sql_v4/rgns_h3_segsum.sql', f'{rgn}_{period}')
   period = 'last24hours'; sql_exec('sql_v4/rgns_h3_segsum.sql', f'{rgn}_{period}')
   
+
+  SELECT * FROM `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum` WHERE h3res=7 AND rgn = 'USA-West' AND period = 'last30days' AND
+pct_length_gt10knots = 0;
+
   # TODO: join by IHS
 
-msg(f'Iterating over {n_zones} zones.')
+# msg(f'Iterating over {n_zones} zones.')
 
-for i_zone,row in df_zones.iterrows(): # i_zone = 0; row = df_zones.loc[i_zone,]
-  rgn      = row['rgn']
-  zone     = row['zone']
-  date_beg = row['date_max']
-  if date_beg == None:
-    date_beg = date_init
+# for i_zone,row in df_zones.iterrows(): # i_zone = 0; row = df_zones.loc[i_zone,]
+#   rgn      = row['rgn']
+#   zone     = row['zone']
+#   date_beg = row['date_max']
+#   if date_beg == None:
+#     date_beg = date_init
 
-  d_zone_spatial = df_zones_spatial[df_zones_spatial["zone"] == zone]
-  d_zone_dates   = df_zones_dates[df_zones_dates["zone"] == zone]
+#   d_zone_spatial = df_zones_spatial[df_zones_spatial["zone"] == zone]
+#   d_zone_dates   = df_zones_dates[df_zones_dates["zone"] == zone]
   
-  job_pfx = f'ais_data_{rgn}_{zone}_{date_beg}_{date_end}_'
-  msg(f'{i_zone+1} of {n_zones}: region_zone {rgn}_{zone}: {job_pfx}')
-  sql = sql_fmt(path_ais_data_sql) # print(sql)
-  job = bq_client.query(sql, job_id_prefix = job_pfx)
-  result = job.result() # uncomment to run
+#   job_pfx = f'ais_data_{rgn}_{zone}_{date_beg}_{date_end}_'
+#   msg(f'{i_zone+1} of {n_zones}: region_zone {rgn}_{zone}: {job_pfx}')
+#   sql = sql_fmt(path_ais_data_sql) # print(sql)
+#   job = bq_client.query(sql, job_id_prefix = job_pfx)
+#   result = job.result() # uncomment to run
 
-# TODO: ais_segments_sql.sql 
-  # - by rgn/zone or all at once?
-  # - load zones first
-  job_pfx = f'ais_segments_{rgn}_{date_beg}_{date_end}_'
-  msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
-  sql = sql_fmt(path_ais_segments_sql) # print(sql)
-  # f = open(f'{path_ais_segments_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
-  # f.write(sql); f.close()
-  job = bq_client.query(sql, job_id_prefix = job_pfx)
-  # result = job.result() # uncomment to run
+# # TODO: ais_segments_sql.sql 
+#   # - by rgn/zone or all at once?
+#   # - load zones first
+#   job_pfx = f'ais_segments_{rgn}_{date_beg}_{date_end}_'
+#   msg(f'rgn {i_rgn+1} of {n_rgns}: {job_pfx}')
+#   sql = sql_fmt(path_ais_segments_sql) # print(sql)
+#   # f = open(f'{path_ais_segments_sql}_{rgn}_{date_beg}_{date_end}.sql', 'w')
+#   # f.write(sql); f.close()
+#   job = bq_client.query(sql, job_id_prefix = job_pfx)
+#   # result = job.result() # uncomment to run
 
-# get summary of regions in rgn_pts
-sql = "SELECT rgn, \
-  MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp, \
-  MIN(lon) AS min_lon, MAX(lon) AS max_lon, \
-  MIN(lat) AS min_lat, MAX(lat) AS max_lat, \
-  COUNT(*) AS cnt \
-  FROM whalesafe_v4.rgn_pts \
-  GROUP BY rgn"
-job = bq_client.query(sql, job_id_prefix = 'SUMMARIZE_rgn_pts_RGN_')
-result = job.result() # uncomment to run
-job.to_dataframe().to_csv("data/rgn_pts_summary.csv")
+# # get summary of regions in rgn_pts
+# sql = "SELECT rgn, \
+#   MIN(timestamp) AS min_timestamp, MAX(timestamp) AS max_timestamp, \
+#   MIN(lon) AS min_lon, MAX(lon) AS max_lon, \
+#   MIN(lat) AS min_lat, MAX(lat) AS max_lat, \
+#   COUNT(*) AS cnt \
+#   FROM whalesafe_v4.rgn_pts \
+#   GROUP BY rgn"
+# job = bq_client.query(sql, job_id_prefix = 'SUMMARIZE_rgn_pts_RGN_')
+# result = job.result() # uncomment to run
+# job.to_dataframe().to_csv("data/rgn_pts_summary.csv")
 
-# jobs meta: careful BIG (284 MB) last time and not restricted by date
-sql = "SELECT * FROM `benioff-ocean-initiative`.`region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT \
-  -- WHERE STARTS_WITH(job_id, 'rgn_pts_') \
-  WHERE DATE(creation_time) = DATE('2021-11-12') \
-  ORDER BY creation_time"
-job = bq_client.query(sql, job_id_prefix = "JOBS_rgn_pts_")
-result = job.result() # uncomment to run
-job.to_dataframe().to_csv("data/rgn_pts_jobs.csv")
+# # jobs meta: careful BIG (284 MB) last time and not restricted by date
+# sql = "SELECT * FROM `benioff-ocean-initiative`.`region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT \
+#   -- WHERE STARTS_WITH(job_id, 'rgn_pts_') \
+#   WHERE DATE(creation_time) = DATE('2021-11-12') \
+#   ORDER BY creation_time"
+# job = bq_client.query(sql, job_id_prefix = "JOBS_rgn_pts_")
+# result = job.result() # uncomment to run
+# job.to_dataframe().to_csv("data/rgn_pts_jobs.csv")
 
-# job
-sql = "SELECT state, total_bytes_processed, error_result FROM `benioff-ocean-initiative`.`region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT \
-  WHERE job_id = 'rgn_pts_USA-East_2017-01-01_2021-11-12_016cfdf0-dce7-4289-9c21-d4f0ecaef3fd'"
-job = bq_client.query(sql, job_id_prefix = "JOBS_rgn_pts_")
-result = job.result() # uncomment to run
-job.to_dataframe()
+# # job
+# sql = "SELECT state, total_bytes_processed, error_result FROM `benioff-ocean-initiative`.`region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT \
+#   WHERE job_id = 'rgn_pts_USA-East_2017-01-01_2021-11-12_016cfdf0-dce7-4289-9c21-d4f0ecaef3fd'"
+# job = bq_client.query(sql, job_id_prefix = "JOBS_rgn_pts_")
+# result = job.result() # uncomment to run
+# job.to_dataframe()
 
 

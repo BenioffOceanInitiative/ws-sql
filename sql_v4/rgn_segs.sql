@@ -3,12 +3,12 @@
 --# create table if needed: rgn_segs_create.sql
 
 --# declare variables
-DECLARE date_beg DATE;
+DECLARE date_beg DATE DEFAULT '{date_beg}';
 DECLARE date_end DATE DEFAULT '{date_end}';
-SET (date_beg) =  (
-  SELECT AS STRUCT COALESCE(MAX(DATE(timestamp)), '{date_init}'), 
-  FROM `{tbl_rgn_segs}`
-  WHERE rgn = '{rgn}' AND timestamp > '1900-01-01' );
+-- SET (date_beg) =  (
+--   SELECT AS STRUCT COALESCE(MAX(DATE(timestamp)), '{date_init}'), 
+--   FROM `{tbl_rgn_segs}`
+--   WHERE rgn = '{rgn}' AND timestamp > '1900-01-01' );
 -- SELECT FORMAT('date_beg = %t; date_end = %t', date_beg, date_end) AS result;
 
 --# delete for given region and dates
@@ -124,7 +124,7 @@ FROM (
         END AS speed_diff_8,
       FROM (
         SELECT
-          (mmsi),
+          mmsi,
           timestamp,
           DATE(timestamp) AS date,
           SAFE_CAST (LEAD((speed_knots), 1) OVER w AS NUMERIC) 
@@ -162,7 +162,8 @@ FROM (
           --AND good_seg IS TRUE
           speed_knots         > 0.001 AND 
           implied_speed_knots > 0.001 AND 
-          overlapping_and_short IS FALSE
+          overlapping_and_short IS FALSE -- NOT TRUE --# this filter seems to have stopped getting set (ie changed to null) starting 2021-11-08
+          -- Resources exceeded during query execution: The query could not be executed in the allotted memory. Peak usage: 127% of limit. Top memory consumer(s): sort operations used for analytic OVER() clauses: 98% other/unattributed: 2%
         WINDOW w AS (PARTITION BY mmsi ORDER BY timestamp)
       )
       WHERE 
