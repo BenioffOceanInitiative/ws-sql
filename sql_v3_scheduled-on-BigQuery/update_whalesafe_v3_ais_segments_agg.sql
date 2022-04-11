@@ -171,6 +171,7 @@ FROM
                     SELECT 
                       s.*,
                       CASE
+                        WHEN s.region = 'cc' THEN 'cc'
                         WHEN z.region IS NULL THEN 'other'
                         WHEN (ST_Intersects(s.linestring, z.geog)) THEN z.region
                         ELSE 'other'
