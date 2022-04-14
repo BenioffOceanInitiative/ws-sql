@@ -1,6 +1,8 @@
 DECLARE rgn_str    STRING DEFAULT '{rgn}';
+DECLARE zone_str   STRING DEFAULT '{zone}';
 DECLARE period_str STRING DEFAULT '{period}';
--- DECLARE rgn_str    STRING DEFAULT 'CAN-GoStLawrence';
+-- DECLARE rgn_str    STRING DEFAULT 'USA-West';
+-- DECLARE zone_str   STRING DEFAULT 'SoCal-VSR';
 -- DECLARE period_str STRING DEFAULT 'last30days';
 
 --# depends on: rgns_h3_segsum_create.sql
@@ -9,8 +11,12 @@ DECLARE period_str STRING DEFAULT '{period}';
 DECLARE max_date, min_date DATE;
 SET (max_date) = (
   SELECT AS STRUCT MAX(DATE(timestamp)) 
-  FROM `{tbl_rgn_segs}`
-  WHERE rgn = rgn_str AND timestamp > '1900-01-01' );
+  FROM `whalesafe_v4.zone_segsum`
+  WHERE 
+    rgn = rgn_str AND 
+    zone = zone_str AND 
+    DATE(timestamp) >= DATE('{date_beg:%Y-%m-%d}') AND
+		DATE(timestamp) <= DATE('{date_end:%Y-%m-%d}') );
 SET (min_date) = (
   SELECT AS STRUCT CASE period_str
     WHEN 'last30days'  THEN DATE_SUB(max_date, INTERVAL 30 DAY)
@@ -20,50 +26,27 @@ SET (min_date) = (
 -- SELECT FORMAT('For %s: min_date = %t; max_date = %t', period_str, min_date, max_date) AS result;
 
 DELETE 
-FROM `{tbl_rgns_h3_segsum}`
+FROM `whalesafe_v4.zone_segsum`
 WHERE
   rgn = rgn_str AND
+  zone = zone_str AND 
   period = period_str;
 
-INSERT `{tbl_rgns_h3_segsum}` (
+INSERT `whalesafe_v4.zone_segsum` (
   rgn, h3res, h3id, 
   length_m_gt10knots, length_m_all, pct_length_gt10knots, 
-  period, date_min, date_max)
-WITH
-  --# s: intersect [s]egments with hexagons (of all h3res values)
-  s AS (
-    SELECT rgn, h3res, h3id, timestamp, final_speed_knots, ST_LENGTH(geog) AS length_m, geog
-    FROM (
-      SELECT h.rgn, h.h3res, h.h3id, s.timestamp, s.final_speed_knots, 
-        ST_UNION(ST_DUMP(ST_INTERSECTION(h.geog, s.linestring), 1)) AS geog
-      FROM (
-          SELECT *
-          FROM `{tbl_rgns_h3}`
-          WHERE rgn = rgn_str )
-          AS h
-        INNER JOIN (
-          SELECT *
-          FROM `{tbl_rgn_segs}`
-          WHERE 
-            rgn = rgn_str AND
-            DATE(timestamp) >= min_date AND
-            DATE(timestamp) <  max_date )
-          AS s 
-        ON ST_Intersects(h.geog, s.linestring) )),
-  --# g: summarize segments per hexagon, [g]reater than 10 knots
-  g AS (
-    SELECT 
-      rgn, h3res, h3id, SUM(length_m) AS length_m_gt10knots
-    FROM s
-    WHERE 
-      final_speed_knots > 10
-    GROUP BY rgn, h3res, h3id ),
-  --# a: summarize segments per hexagon, [a]ll
-  a AS (
-    SELECT 
-      rgn, h3res, h3id, SUM(length_m) AS length_m_all
-    FROM s
-    GROUP BY rgn, h3res, h3id )
+  period, date_min, date_max
+)
+SELECT 
+  s.*,
+  period_str AS period
+FROM `whalesafe_v4.zone_segs` s
+WHERE
+  rgn = rgn_str AND
+  zone = zone_str AND 
+  DATE(timestamp) >= min_date AND
+  DATE(timestamp) <  max_date
+  )
 SELECT 
   rgn, h3res, h3id, 
   COALESCE(length_m_gt10knots, 0) AS length_m_gt10knots, 

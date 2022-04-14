@@ -133,6 +133,23 @@ df_zones_dates   = get_sheet("zones_dates")
 df_bins          = get_sheet("bins")
 df_rgns          = get_sheet("rgns")
 
+# fix zones_dates dataframe
+df_zones_dates = df_zones_dates\
+  .drop(columns = ['rgn','date_updated'])\
+  .replace('ONGOING', date.today())
+# convert dates from string and drop any that did not convert
+df_zones_dates['date_beg'] = pd.to_datetime(df_zones_dates['date_beg'], errors='coerce')
+df_zones_dates['date_end'] = pd.to_datetime(df_zones_dates['date_end'], errors='coerce')
+df_zones_dates = df_zones_dates[
+  df_zones_dates['date_beg'].notnull() & 
+  df_zones_dates['date_end'].notnull()]
+
+# df_zones = pd.merge(
+#   df_zones_spatial,
+#   df_zones_dates, 
+#   on=['zone','zone'],
+#   how="inner")
+
 # gets regions with last fetched date from GFW data, based on {tbl_rgn_pts}
 df_rgns_db = bq_client.query(f"""
   SELECT r.*, date_max FROM 
@@ -251,15 +268,16 @@ def show_jobs(n = 10):
     print(f"{job.created:%Y-%m-%d %H:%M:%S} | {job.state} | {job.job_id} | {job.exception()}")
 # show_jobs(10)
 
-msg(f'Iterating over {n_rgns} regions')
-
 # create tables if don't exist
+msg(f'Data definition language (DDL, eg CREATE or ALTER TABLE) queries for ALL.')
 sql_exec('sql_v4/rgn_pts_create.sql'          , 'ALL')
 sql_exec('sql_v4/rgn_segs_create.sql'         , 'ALL')
 sql_exec('sql_v4/rgn_segs_speedbins_alter.sql', 'ALL')
 sql_exec('sql_v4/rgn_segs_shore_alter.sql'    , 'ALL')
 sql_exec('sql_v4/rgns_h3_segsum_create.sql'   , 'ALL')
+sql_exec('sql_v4/zone_segs_create.sql'        , 'ALL')
 
+msg(f'Iterating over {n_rgns} regions')
 for i_rgn,row in df_rgns.iterrows(): # i_rgn = 1; row = df_rgns.iloc[i_rgn,]
   rgn = row['rgn']
   xmin, xmax, ymin, ymax = [row['bbox'][key] for key in ['xmin', 'xmax', 'ymin', 'ymax']]
@@ -271,7 +289,7 @@ for i_rgn,row in df_rgns.iterrows(): # i_rgn = 1; row = df_rgns.iloc[i_rgn,]
     continue
 
   # rgn_pts
-  # sql_exec('sql_v4/rgn_pts.sql', f'{rgn}_{date_beg}_{date_end}', wait=True)
+  sql_exec('sql_v4/rgn_pts.sql', f'{rgn}_{date_beg}_{date_end}', wait=True)
 
   # rgn_segs
   sql_exec('sql_v4/rgn_segs.sql', f'{rgn}_{date_beg}_{date_end}', wait=True)
@@ -285,19 +303,25 @@ for i_rgn,row in df_rgns.iterrows(): # i_rgn = 1; row = df_rgns.iloc[i_rgn,]
   # TODO: filter by shore
 
   # rgns_h3_segsum
-  period = 'last30days' ; sql_exec('sql_v4/rgns_h3_segsum.sql', f'{rgn}_{period}', eval_sql=True, eval=True)
-  # Example: green-red https://jsfiddle.net/bdbest/hyLt0782/34/
+  period = 'last30days' ; sql_exec('sql_v4/rgns_h3_segsum.sql', f'{rgn}_{period}')
   period = 'last5days'  ; sql_exec('sql_v4/rgns_h3_segsum.sql', f'{rgn}_{period}')
   period = 'last24hours'; sql_exec('sql_v4/rgns_h3_segsum.sql', f'{rgn}_{period}')
-  
-
-  SELECT * FROM `benioff-ocean-initiative.whalesafe_v4.rgns_h3_segsum` WHERE h3res=7 AND rgn = 'USA-West' AND period = 'last30days' AND
-pct_length_gt10knots = 0;
-
   # TODO: join by IHS
 
-# msg(f'Iterating over {n_zones} zones.')
+msg(f'Iterating over {n_zones} zones.')
 
+for i, row in df_zones_dates.iterrows(): # i = 17; row = df_zones_dates.loc[i]  
+  print(f"{i}: {row['zone']}")
+
+  zone     = row['zone']
+  date_beg = row['date_beg']
+  date_end = row['date_end']
+
+  rgn = df_zones_spatial['rgn'][df_zones_spatial['zone'] == zone].values[0]
+
+  # rgn_segs
+  sql_exec('sql_v4/zone_segs.sql', f'{rgn}_{zone}_{date_beg:%Y-%m-%d}_{date_end:%Y-%m-%d}') # , eval_sql=True, eval=False, wait=True
+  
 # for i_zone,row in df_zones.iterrows(): # i_zone = 0; row = df_zones.loc[i_zone,]
 #   rgn      = row['rgn']
 #   zone     = row['zone']
