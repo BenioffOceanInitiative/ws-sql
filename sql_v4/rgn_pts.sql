@@ -442,8 +442,9 @@ SELECT
   s.good_seg, s.overlapping_and_short
 FROM
   distance_from_satellite AS p
-  LEFT_JOIN
+  LEFT JOIN
   `{tbl_gfw_segs}` AS s
+  USING (seg_id)
 WHERE
   DATE(p.timestamp) >= DATE('{date_beg}') AND
   DATE(p.timestamp) <= DATE('{date_end}') AND

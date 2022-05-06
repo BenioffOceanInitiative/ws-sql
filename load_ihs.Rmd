@@ -1,0 +1,79 @@
+---
+title: "Load IHS Data"
+output: html_document
+date: '2022-05-06'
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load 
+
+```{r}
+librarian::shelf(
+  dplyr, DT, here, janitor, readr,
+  # glue, googlesheets4, here, htmltools, 
+  # lwgeom, mapview, purrr, sf, stringr, tibble, tidyr,
+  quiet = T)
+source(here("scripts/db.R"))
+
+# GDrive on Ben's laptop
+ihs_csv <- "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/IHS/11-23-21 IHS Data WS NA/11-23-21_IHS.csv"
+
+df_ihs <- read_csv(ihs_csv)
+bq_ihs <- "benioff-ocean-initiative.whalesafe_v4.ihs"
+  
+if (bq_table_exists(bq_ihs)){
+  bq_table_delete(bq_ihs)
+}
+
+# rename fields
+df_flds <- tibble(
+  fld_old = names(df_ihs),
+  fld_new = make_clean_names(names(df_ihs)))
+datatable(df_flds)
+names(df_ihs) <- df_flds$fld_new
+
+# create the table schema
+bq_zones <- bq_table_create(
+  bq_ihs,
+  df_ihs,
+  friendly_name = "IHS boat ownership",
+  description   = "Created by:
+      https://github.com/BenioffOceanInitiative/ws-sql/blob/main/load_ihs.Rmd",
+  labels = list(category = "ownership"))
+
+# upload the table contents
+bq_table_upload(bq_ihs, df_ihs)
+```
+
+
+## Get all MMSIs since 2022-01-01
+
+```{r}
+# TODO
+con <- dbConnect(
+  bigrquery::bigquery(),
+  project = "publicdata",
+  dataset = "samples",
+  billing = billing
+)
+con 
+```
+
+```{sql}
+SELECT 
+  mmsi, MIN(DATE(timestamp)) as date_min, MAX(DATE(timestamp)) AS date_max, 
+  MAX(CASE WHEN rgn = 'CAN-GoStLawrence' THEN 1 ELSE 0 END) AS in_can_gostlawrence,
+  MAX(CASE WHEN rgn = 'USA-East' THEN 1 ELSE 0 END) AS in_usa_east,
+  MAX(CASE WHEN rgn = 'USA-GoMex' THEN 1 ELSE 0 END) AS in_usa_gomex,
+  MAX(CASE WHEN rgn = 'USA-East' THEN 1 ELSE 0 END) AS in_usa_west,
+  COUNT(*) AS n_rgn_pts 
+FROM `benioff-ocean-initiative.whalesafe_v4.rgn_pts`
+WHERE DATE(timestamp) >= "2021-01-01" 
+GROUP BY mmsi;
+```
+

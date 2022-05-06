@@ -4,13 +4,13 @@ author: "Ben Best"
 date: "11/18/2021"
 output:
   html_document:
+    #   "--shift-heading-level-by=-1"]
     code_folding: hide
     toc: true
     toc_depth: 3
     toc_float: true
     number_sections: true
     # pandoc_args: [
-    #   "--shift-heading-level-by=-1"]
 editor_options: 
   chunk_output_type: console
 ---
@@ -104,7 +104,8 @@ print(tagList(tbl))
 stopifnot(any(!duplicated(d_zones$zone)))
 
 get_sf <- function(path_shp, shp_filter){
-  # p = zones_sf$path_shp[1]; f = zones_sf$shp_filter[1]
+  # path_shp = zones_sf$path_shp[1]; f = zones_sf$shp_filter[1]
+  # path_shp = "{dir_shp}/United States/SF_VSR/vsr_sf_2022/sf_vsr_2022.shp"; shp_filter=NA
   message(glue("path_shp:{path_shp}; shp_filter:{shp_filter}"))
   
   # if (f == 'Restr_Area == "Mid-Atl Block Island Sound"')
@@ -112,6 +113,9 @@ get_sf <- function(path_shp, shp_filter){
   f_expr <- rlang::parse_expr(shp_filter)
   
   d <- read_sf(glue(path_shp))
+  
+  if (is.na(st_crs(d)))
+    st_crs(d) <- 4326
 
   if (!is.na(f_expr))
     d <- filter(d, !!f_expr)
