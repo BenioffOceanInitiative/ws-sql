@@ -281,11 +281,10 @@ msg(f'Iterating over {n_rgns} regions')
 for i_rgn,row in df_rgns.iterrows(): # i_rgn = 1; row = df_rgns.iloc[i_rgn,]
   rgn = row['rgn']
   xmin, xmax, ymin, ymax = [row['bbox'][key] for key in ['xmin', 'xmax', 'ymin', 'ymax']]
-  # date_beg = row['date_max']
-  date_beg = date_init
-  #msg(f'{i_rgn} of {n_rgns}: {rgn}')
-  if i_rgn == 1:
-    msg(f'  skipping {rgn}')
+  date_beg = row['date_max']
+  # date_beg = date_init # uncomment to redo
+  msg(f"{i_rgn} of {n_rgns}: {rgn} >= {date_beg}")
+  if i_rgn == 0: # debug: already did 0
     continue
 
   # rgn_pts
@@ -319,9 +318,9 @@ for i, row in df_zones_dates.iterrows(): # i = 17; row = df_zones_dates.loc[i]
 
   rgn = df_zones_spatial['rgn'][df_zones_spatial['zone'] == zone].values[0]
 
-  # rgn_segs
+  # zone_segs
   sql_exec('sql_v4/zone_segs.sql', f'{rgn}_{zone}_{date_beg:%Y-%m-%d}_{date_end:%Y-%m-%d}') # , eval_sql=True, eval=False, wait=True
-  
+
 # for i_zone,row in df_zones.iterrows(): # i_zone = 0; row = df_zones.loc[i_zone,]
 #   rgn      = row['rgn']
 #   zone     = row['zone']

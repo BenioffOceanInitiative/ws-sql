@@ -29,7 +29,7 @@ bigrquery::bq_auth(path = auth_json)
 # connection_close(con)
 
 # DBI only connection
-con <<- dbConnect(
+con <- dbConnect(
   bigrquery::bigquery(),
   project = "benioff-ocean-initiative",
   dataset = "whalesafe_v4",

@@ -10,59 +10,81 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Load 
+## Load IHS 
 
 ```{r}
 librarian::shelf(
-  dplyr, DT, here, janitor, readr,
+  dplyr, DT, glue, here, janitor, readr,
   # glue, googlesheets4, here, htmltools, 
   # lwgeom, mapview, purrr, sf, stringr, tibble, tidyr,
   quiet = T)
+
 source(here("scripts/db.R"))
 
 # GDrive on Ben's laptop
-ihs_csv <- "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/IHS/11-23-21 IHS Data WS NA/11-23-21_IHS.csv"
+ihs_redo = TRUE
 
-df_ihs <- read_csv(ihs_csv)
-bq_ihs <- "benioff-ocean-initiative.whalesafe_v4.ihs"
+if ("ihs" %in% dbListTables(con) & ihs_redo)
+  dbRemoveTable(con, "ihs")
+
+load_ihs <- function(date_pulled, csv){
+  # date_pulled = "2021-11-23"
+  # csv = "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/IHS/2021-11-23 IHS Data WS NA/11-23-21_IHS.csv"
+  # date_pulled = "2022-05-13"
+  # csv = "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/IHS/2022-05-06 IHS data/2022-05-13-ws-ihs-data.csv"
+
+  d <- read_csv(csv, show_col_types=F) %>% 
+    select(-1, -imo_lr_ihs_no) %>% 
+    mutate(
+      date_pulled = as.Date(!!date_pulled)) %>% 
+    rename(
+      weight_gt = gt,
+      length_m  = length) # nrow(d)
   
-if (bq_table_exists(bq_ihs)){
-  bq_table_delete(bq_ihs)
+  if ("ihs" %in% dbListTables(con)){
+    dbSendQuery(
+      con, glue(
+        "DELETE FROM ihs WHERE date_pulled = '{date_pulled}'"))
+    stopifnot(length(setdiff(names(d), dbListFields(con, "ihs"))) == 0)
+    stopifnot(length(setdiff(dbListFields(con, "ihs"), names(d))) == 0)
+  }
+
+  if ("ihs" %in% dbListTables(con)){
+    # dbAppendTable(con, "ihs", d) # Error: ✖ Positional parameters are not supported at [4:4] [invalidQuery]
+    if ("tmp" %in% dbListTables(con))
+      dbRemoveTable(con, "tmp")
+    dbWriteTable(con, "tmp", d)
+    dbSendQuery(
+      con, glue(
+        "INSERT INTO ihs
+        SELECT * FROM tmp"))
+    dbRemoveTable(con, "tmp")
+  } else {
+    dbWriteTable(con, "ihs", d)
+  }
+  
+  tbl(con, "ihs") %>% 
+    group_by(date_pulled) %>% 
+    summarize(n = n()) %>% 
+    collect()
+  # A tibble: 2 × 2
+  #   date_pulled     n
+  #   <date>      <int>
+  # 1 2021-11-23  23459
+  # 2 2022-05-13  19335
 }
 
-# rename fields
-df_flds <- tibble(
-  fld_old = names(df_ihs),
-  fld_new = make_clean_names(names(df_ihs)))
-datatable(df_flds)
-names(df_ihs) <- df_flds$fld_new
+load_ihs(
+  "2021-11-23", 
+  "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/IHS/2021-11-23 IHS Data WS NA/11-23-21_IHS.csv")
 
-# create the table schema
-bq_zones <- bq_table_create(
-  bq_ihs,
-  df_ihs,
-  friendly_name = "IHS boat ownership",
-  description   = "Created by:
-      https://github.com/BenioffOceanInitiative/ws-sql/blob/main/load_ihs.Rmd",
-  labels = list(category = "ownership"))
-
-# upload the table contents
-bq_table_upload(bq_ihs, df_ihs)
+load_ihs(
+  "2022-05-13", 
+  "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/IHS/2022-05-06 IHS data/2022-05-13-ws-ihs-data.csv")
 ```
 
 
 ## Get all MMSIs since 2022-01-01
-
-```{r}
-# TODO
-con <- dbConnect(
-  bigrquery::bigquery(),
-  project = "publicdata",
-  dataset = "samples",
-  billing = billing
-)
-con 
-```
 
 ```{sql}
 SELECT 
@@ -75,5 +97,28 @@ SELECT
 FROM `benioff-ocean-initiative.whalesafe_v4.rgn_pts`
 WHERE DATE(timestamp) >= "2021-01-01" 
 GROUP BY mmsi;
+```
+
+## check mismatches
+
+```{r}
+dir_ihs <- "/Volumes/GoogleDrive/.shortcut-targets-by-id/1SHlPwuO32zevQ6W9ZHb-CQLigiXRFeDY/AIS Ship Report Cards/Data/IHS"
+ihs_2111 <- read_csv(file.path(dir_ihs, "2021-11-23 IHS Data WS NA/11-23-21_IHS.csv"))
+pts_2205 <- read_csv(file.path(dir_ihs, "2022-05-06 IHS data/whalesafev4_rgnpts_mmsi_2022-01-01 to 2022-05-06.csv"))
+ihs_2205 <- read_csv(file.path(dir_ihs, "2022-05-06 IHS data/2022-05-13-ws-ihs-data.csv"))
+
+nrow(ihs_2111) # 23,459
+nrow(pts_2205) # 45,517
+nrow(ihs_2205) # 19,335
+length(setdiff(pts_2205$mmsi, ihs_2205$mmsi)) # 38,594
+length(setdiff(ihs_2205$mmsi, pts_2205$mmsi)) #  8,108
+length(setdiff(ihs_2111$mmsi, ihs_2205$mmsi)) #  9,625
+length(setdiff(ihs_2205$mmsi, ihs_2111$mmsi)) #  1,199
+
+length(setdiff(pts_2205$mmsi, c(ihs_2205$mmsi, ihs_2111$mmsi))) # 34,262
+
+table(nchar(as.character(pts_2205$mmsi)))
+#   5     7     8     9 
+#   2     5     3 45507
 ```
 

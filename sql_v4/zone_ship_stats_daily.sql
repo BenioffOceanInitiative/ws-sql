@@ -1,6 +1,31 @@
 -- original: whalesafe_v3.ship_stats_daily
-
-DROP TABLE IF EXISTS `whalesafe_v3.ship_stats_daily`;
+-- 
+WITH
+	ais AS(
+    SELECT
+      ais.*, ihs.* EXCEPT (mmsi, gt)
+    FROM
+      `whalesafe_v3.ais_vsr_segments` AS ais
+      LEFT JOIN `whalesafe_v3.ihs_data_all` AS ihs
+      ON ais.mmsi = ihs.mmsi
+    WHERE
+      (ais.timestamp) > '1990-01-01'
+      --   AND touches_coast IS TRUE -- # touches_coast FILTER, UNCOMMENT IF NEEDED
+      -- newer
+      AND DATE(ais.timestamp) BETWEEN ihs.start_date AND ihs.end_date
+      -- TODO: logic to get nearest ihs.pull_date
+      ihs.pull_date = MIN(ABS(DATE(ais.timestamp) - ihs.pull_date)
+      DATE 
+  ),
+	ais_cats AS (
+    SELECT
+				ais.*,
+				cats.* EXCEPT (shiptype)
+			LEFT JOIN `whalesafe_v3.shiptype_categories` cats
+				ON TRIM(ais.ship_type) = TRIM(cats.shiptype)
+				WHERE
+					ais.gt >= 300
+  ),
 
 -- # -- Step 1: Create updated ship_stats_daily table.
 CREATE TABLE IF NOT EXISTS `whalesafe_v3.ship_stats_daily`
@@ -211,28 +236,7 @@ FROM (
 			MIN( timestamp_beg ) AS min_timestamp,
       vsr_category,
       exclude_category
-		FROM (
-			SELECT
-				ais.*,
-				cats.* EXCEPT (shiptype)
-			FROM (
-				SELECT
-					ais.*, ihs.* EXCEPT (mmsi, gt)
-				FROM
-					`whalesafe_v3.ais_vsr_segments` AS ais
-					LEFT JOIN `whalesafe_v3.ihs_data_all` AS ihs
-					ON ais.mmsi = ihs.mmsi
-				WHERE
-					(ais.timestamp) > '1990-01-01'
-					--   AND touches_coast IS TRUE -- # touches_coast FILTER, UNCOMMENT IF NEEDED
-					AND DATE(ais.timestamp_beg) >= (ihs.start_date)
-					AND DATE(ais.timestamp_end) <= (ihs.end_date)
-			) AS ais
-			LEFT JOIN `whalesafe_v3.shiptype_categories` cats
-				ON TRIM(ais.ship_type) = TRIM(cats.shiptype)
-				WHERE
-					ais.gt >= 300
-			)	
+		FROM ais_cats
 		GROUP BY
 			mmsi, name_of_ship, operator, operator_code, technical_manager, ship_type, gt, date, vsr_region, ship_category, vsr_category, exclude_category
 		)
