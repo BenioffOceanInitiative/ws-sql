@@ -418,8 +418,8 @@ FROM
               exclude_category
           )
       )
-  )
-UNION ALL
+  ) 
+UNION ALL 
 SELECT 
   mmsi, 
   name_of_ship, 
@@ -811,8 +811,11 @@ FROM
                   ) AS ais 
                   LEFT JOIN `whalesafe_v3.shiptype_categories` cats ON TRIM(ais.ship_type) = TRIM(cats.shiptype) 
                 WHERE 
-                  ais.gt >= 300
-                  AND (ais.vsr_region = 'sc' OR ais.vsr_region = 'sf')
+                  ais.gt >= 300 
+                  AND (
+                    ais.vsr_region = 'sc' 
+                    OR ais.vsr_region = 'sf'
+                  )
               ) 
             GROUP BY 
               mmsi, 
@@ -822,20 +825,17 @@ FROM
               technical_manager, 
               ship_type, 
               gt, 
-              date,
+              date, 
               ship_category, 
               vsr_category, 
               exclude_category
           )
       )
-  )
-
-
--- -- # -- Step 2: Create a timestamp log to track newest timestamps in stats data.
-CREATE TABLE IF NOT EXISTS `whalesafe_v3.stats_log` (
-  newest_timestamp TIMESTAMP, newest_date DATE, 
-  date_accessed TIMESTAMP, table_name STRING
-);
+  ) -- -- # -- Step 2: Create a timestamp log to track newest timestamps in stats data.
+  CREATE TABLE IF NOT EXISTS `whalesafe_v3.stats_log` (
+    newest_timestamp TIMESTAMP, newest_date DATE, 
+    date_accessed TIMESTAMP, table_name STRING
+  );
 -- # -- Step 3: Insert newest timestamp into log
 INSERT INTO `whalesafe_v3.stats_log` 
 SELECT 
