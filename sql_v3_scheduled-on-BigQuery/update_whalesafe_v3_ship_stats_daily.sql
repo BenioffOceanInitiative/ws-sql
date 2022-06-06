@@ -832,12 +832,11 @@ FROM
           )
       )
   );
-  
-  -- -- # -- Step 2: Create a timestamp log to track newest timestamps in stats data.
-  CREATE TABLE IF NOT EXISTS `whalesafe_v3.stats_log` (
-    newest_timestamp TIMESTAMP, newest_date DATE, 
-    date_accessed TIMESTAMP, table_name STRING
-  );
+-- -- # -- Step 2: Create a timestamp log to track newest timestamps in stats data.
+CREATE TABLE IF NOT EXISTS `whalesafe_v3.stats_log` (
+  newest_timestamp TIMESTAMP, newest_date DATE, 
+  date_accessed TIMESTAMP, table_name STRING
+);
 -- # -- Step 3: Insert newest timestamp into log
 INSERT INTO `whalesafe_v3.stats_log` 
 SELECT 
