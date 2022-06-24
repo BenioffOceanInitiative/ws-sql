@@ -122,3 +122,70 @@ table(nchar(as.character(pts_2205$mmsi)))
 #   2     5     3 45507
 ```
 
+## Check against GFW vessel info
+
+```{r}
+dbListTables(con)
+
+ships <- tbl(con, "rgn_pts") %>%
+  distinct(mmsi) %>% 
+  left_join(
+    tbl(con, "gfw_vessels"),
+    by = "mmsi") %>% 
+  group_by(mmsi) %>% 
+  summarize(
+    operator   = max(operator, na.rm=T),
+    length_m   = max(length_m, na.rm=T),
+    tonnage_gt = max(tonnage_gt, na.rm=T)) %>% 
+  collect()
+
+
+
+table(is.na(ships$operator))
+table(is.na(ships$length_m))
+table(is.na(ships$tonnage_gt))
+
+v <- ships %>% 
+  select(length_m, tonnage_gt) %>% 
+  mutate(
+    has_length = !is.na(length_m),
+    has_tonnage = !is.na(tonnage_gt))
+
+select(v, has_length, has_tonnage) %>% 
+  table()
+#           has_tonnage
+# has_length  FALSE   TRUE
+#      FALSE 116,166  21,432
+#      TRUE   18,731  15,549
+
+w <- select(v, has_length, has_tonnage) %>% 
+  filter(!is.na(has_length), !is.na(has_tonnage))
+plot()
+
+
+shelf(tidyr)
+
+ships %>% 
+  summarize(
+    operator   = sum(!is.na(operator))/n(),
+    length_m   = sum(!is.na(length_m))/n(),
+    tonnage_gt = sum(!is.na(tonnage_gt))/n()) %>% 
+  pivot_longer(everything(), names_to = "var", values_to = "pct") %>% 
+  datatable() %>% 
+  formatPercentage(2, 1)
+```
+
+## `gfwr`
+
+```{r}
+gh_auth    <- readLines("~/My Drive/private/gh-push_pat.txt")
+gfw_token <- readLines("~/My Drive/private/gfwr_token.txt")
+
+remotes::install_github("GlobalFishingWatch/gfwr", auth_token=gh_auth)
+
+library(gfwr)
+Sys.setenv(GFW_TOKEN = gfw_token)
+
+get_vessel_info(query = 224224000, search_type = "advanced")
+```
+
