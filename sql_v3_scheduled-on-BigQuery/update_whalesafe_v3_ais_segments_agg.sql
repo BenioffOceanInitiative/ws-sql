@@ -13,10 +13,7 @@ DECLARE new_seg_agg_ts DEFAULT(
   FROM 
     `benioff-ocean-initiative.whalesafe_v3.ais_segments_agg` 
   WHERE 
-    date > DATE_SUB(
-      CURRENT_DATE(), 
-      INTERVAL 1 YEAR
-    ) 
+    date <= CURRENT_DATE()
   LIMIT 
     1
 );
@@ -29,12 +26,19 @@ CREATE TEMPORARY TABLE `temp_ais_segments_agg` (
   total_distance_nm NUMERIC, seg_min NUMERIC, 
   unix_beg INT64, unix_end INT64, timestamp_beg TIMESTAMP, 
   timestamp_end TIMESTAMP, touches_coast BOOL, 
-  region STRING, npts INT64, geom GEOGRAPHY
+  region STRING, vsr_region STRING, npts INT64, geom GEOGRAPHY
 );
 -- -- -- -- # Step 3: Insert aggregated segments data created from gfw_segments data
 INSERT INTO `temp_ais_segments_agg` 
 SELECT 
-  * 
+  mmsi, date, speed_bin_num, 
+  seg_id, avg_speed_knots, 
+  avg_implied_speed_knots, 
+  avg_calculated_knots, avg_speed_knots_final, 
+  total_distance_nm, seg_min, 
+  unix_beg, unix_end, timestamp_beg, 
+  timestamp_end, touches_coast, 
+  region, vsr_region, npts, geom
 FROM 
   (
     SELECT 
@@ -191,11 +195,9 @@ FROM
                       CASE WHEN final_speed_bin_num = LEAD(final_speed_bin_num) OVER w THEN 0 WHEN final_speed_bin_num <> LEAD(final_speed_bin_num) OVER w THEN 1 END AS seg_chg, 
                     FROM 
                       `benioff-ocean-initiative.whalesafe_v3.ais_segments`  AS s
-                      FULL OUTER JOIN `whalesafe_v3.vsr_zones` AS z
+                      LEFT JOIN `whalesafe_v3.vsr_zones` AS z
                       ON ST_Intersects(s.linestring, z.geog)
                     WHERE (timestamp) > new_seg_agg_ts
-                    AND
-                    date(timestamp) <= DATE_ADD(DATE(new_seg_agg_ts), INTERVAL 6 MONTH)
                     AND touches_coast IS FALSE WINDOW w AS (
                         PARTITION BY mmsi 
                         ORDER BY 
@@ -223,10 +225,10 @@ CREATE TABLE IF NOT EXISTS `whalesafe_v3.ais_segments_agg` (
   total_distance_nm NUMERIC, seg_min NUMERIC, 
   unix_beg INT64, unix_end INT64, timestamp_beg TIMESTAMP, 
   timestamp_end TIMESTAMP, touches_coast BOOL, 
-  region STRING, npts INT64, geom GEOGRAPHY
+  region STRING, vsr_region STRING, npts INT64, geom GEOGRAPHY
 ) PARTITION BY date CLUSTER BY mmsi, 
 seg_id, 
-region, 
+region,
 geom OPTIONS (
   description = "partitioned by day, clustered by (mmsi, seg_id, region, geom)", 
   require_partition_filter = TRUE
