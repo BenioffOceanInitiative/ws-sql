@@ -178,7 +178,7 @@ ships %>%
 ## `gfwr`
 
 ```{r}
-gh_auth    <- readLines("~/My Drive/private/gh-push_pat.txt")
+gh_auth   <- readLines("~/My Drive/private/gh-push_pat.txt")
 gfw_token <- readLines("~/My Drive/private/gfwr_token.txt")
 
 remotes::install_github("GlobalFishingWatch/gfwr", auth_token=gh_auth)
@@ -186,6 +186,7 @@ remotes::install_github("GlobalFishingWatch/gfwr", auth_token=gh_auth)
 library(gfwr)
 Sys.setenv(GFW_TOKEN = gfw_token)
 
-get_vessel_info(query = 224224000, search_type = "advanced")
+r <- get_vessel_info(query = 224224000, search_type = "advanced")
+View(r)
 ```
 
