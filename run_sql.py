@@ -4,11 +4,11 @@
 # - [Postgres app for Mac](https://postgresapp.com/downloads.html)
 # vi ~/.zprofile
 #   PATH=$PATH:/Users/bbest/Library/Python/3.8/bin:/Applications/Postgres.app/Contents/Versions/latest/bin
-# pip install --upgrade pandas google-cloud-bigquery pyarrow sqlalchemy psycopg2-binary python-dateutil oauth2client google-auth-httplib2 google-auth-oauthlib google-api-python-client
+# pip install --upgrade pandas db-dtypes google-cloud-bigquery pyarrow sqlalchemy psycopg2-binary python-dateutil oauth2client google-auth-httplib2 google-auth-oauthlib google-api-python-client
 
 # modules
 from __future__ import print_function
-from asyncio.windows_events import NULL
+#from asyncio.windows_events import NULL # windows only
 from posixpath import basename
 import pandas as pd
 from google.cloud  import bigquery
